@@ -65,7 +65,7 @@ function ValidateTables([Array] $userTables){
 
            foreach ($userColumn in $datatable)
            {
-                $sbCol = [System.Text.StringBuilder]::new()
+                $sbCol = New-Object -TypeName "System.Text.StringBuilder"
                 $schemaObj = $global:scope_config_data.SqlSyncProviderScopeConfiguration.Adapter | Where-Object GlobalName -eq $userTable
                 $schemaColumn = $schemaObj.Col | Where-Object Name -eq $userColumn.ColumnName
                 if(!$schemaColumn)
@@ -419,8 +419,8 @@ WHERE fk1.parent_object_id <> fk2.parent_object_id;"
 function ValidateDSSMember(){
     Try
     {
-        $runnableScript = [System.Text.StringBuilder]::new()
-        $errorSummary = [System.Text.StringBuilder]::new()
+        $runnableScript = New-Object -TypeName "System.Text.StringBuilder"
+        $errorSummary = New-Object -TypeName "System.Text.StringBuilder"
         $allTrackingTableList = New-Object System.Collections.ArrayList
         $allTriggersList = New-Object System.Collections.ArrayList
         $allSPsList = New-Object System.Collections.ArrayList
@@ -860,7 +860,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.2 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.2.1 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
