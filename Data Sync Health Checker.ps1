@@ -81,6 +81,11 @@ function ValidateTables([Array] $userTables){
 
                 [void]$sbCol.Append($userTable + ".[" + $userColumn.ColumnName + "] " + $schemaColumn.param)
 
+                if($schemaColumn.pk)
+                {
+                    [void]$sbCol.Append(" PrimaryKey ")
+                }
+
                 if($schemaColumn.type -ne $userColumn.Datatype)
                 { 
                     [void]$sbCol.Append('  Type(' + $schemaColumn.type +'):NOK ')
@@ -860,7 +865,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.2.1 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.2.2 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
