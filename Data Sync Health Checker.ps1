@@ -32,9 +32,10 @@ $MemberPassword = ''
 
 function ValidateTables([Array] $userTables){    
     foreach ($userTable in $userTables) 
-    {       
+    {
+        $TablePKList = New-Object System.Collections.ArrayList       
         
-           $query = "SELECT 
+        $query = "SELECT 
                      c.name 'ColumnName',
                      t.Name 'Datatype',
                      c.max_length 'MaxLength',
@@ -42,15 +43,15 @@ function ValidateTables([Array] $userTables){
                      FROM sys.columns c
                      INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
                      WHERE c.object_id = OBJECT_ID('" + $userTable + "')" 
-           $MemberCommand.CommandText = $query
-           $result = $MemberCommand.ExecuteReader()
-           $datatable = new-object “System.Data.DataTable”
-           $datatable.Load($result)
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
 
-           $syncGroupSchemaColumns = $global:sgSchemaXml | Where-Object {$_.QuotedTableName -eq $userTable} | Select -ExpandProperty ColumnsToSync
-           
-           foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
-           {
+        $syncGroupSchemaColumns = $global:sgSchemaXml | Where-Object {$_.QuotedTableName -eq $userTable} | Select -ExpandProperty ColumnsToSync
+        
+        foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
+        {
                 $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
                 if(!$scopeCol)
                 {
@@ -63,8 +64,8 @@ function ValidateTables([Array] $userTables){
                 }                
            }
 
-           foreach ($userColumn in $datatable)
-           {
+        foreach ($userColumn in $datatable)
+        {
                 $sbCol = New-Object -TypeName "System.Text.StringBuilder"
                 $schemaObj = $global:scope_config_data.SqlSyncProviderScopeConfiguration.Adapter | Where-Object GlobalName -eq $userTable
                 $schemaColumn = $schemaObj.Col | Where-Object Name -eq $userColumn.ColumnName
@@ -84,6 +85,7 @@ function ValidateTables([Array] $userTables){
                 if($schemaColumn.pk)
                 {
                     [void]$sbCol.Append(" PrimaryKey ")
+                    [void]$TablePKList.Add($schemaColumn.name)
                 }
 
                 if($schemaColumn.type -ne $userColumn.Datatype)
@@ -136,8 +138,40 @@ function ValidateTables([Array] $userTables){
                 $sbColString = $sbCol.ToString()
                 if($sbColString -match 'NOK'){ Write-Host $sbColString -ForegroundColor Red } else { Write-Host $sbColString -ForegroundColor Green }
                 
-           }             
+           }
+        
+        ValidateTrackingRecords $userTable $TablePKList             
     }
+}
+
+function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
+
+    #Write-Host "ValidateTrackingRecords" $table -foreground "Red"
+    $tableNameWithoutSchema = ($table.Replace("[","").Replace("]","").Split('.'))[1]
+    
+    $sbQuery = New-Object -TypeName "System.Text.StringBuilder"
+    
+    [void]$sbQuery.Append("SELECT COUNT(*) AS C FROM DataSync.")
+    [void]$sbQuery.Append($tableNameWithoutSchema)
+    [void]$sbQuery.Append("_dss_tracking t WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
+    [void]$sbQuery.Append($table)
+    [void]$sbQuery.Append(" s WHERE ")
+    for ($i=0; $i -lt $tablePKList.Length; $i++) {
+        if($i -gt 0) { [void]$sbQuery.Append(" AND ") }
+        [void]$sbQuery.Append("t."+$tablePKList[$i] + " = s."+$tablePKList[$i] )
+    }
+    [void]$sbQuery.Append(")")
+    
+    $MemberCommand.CommandText = $sbQuery.ToString()
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+    $count = $datatable | select C -ExpandProperty C
+    if($count -ne 0){
+        $msg = "WARNING: Tracking Records for Table " + $table + " may have " + $count + " invalid records!" 
+        Write-Host $msg -foreground Red
+        [void]$errorSummary.AppendLine($msg) 
+    }     
 }
 
 function ValidateTrackingTables([Array] $tables){
