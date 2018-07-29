@@ -11,7 +11,6 @@ $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O 
 $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
 $ExtendedValidationsCommandTimeout = 600 #seconds
 
-
 #Sync metadata database
 $SyncDbServer = '.database.windows.net'
 $SyncDbDatabase = ''
@@ -471,6 +470,32 @@ WHERE fk1.parent_object_id <> fk2.parent_object_id;"
     }
 }
 
+function ValidateTableNames{
+    $query = "SELECT DISTINCT t1.name AS TableName FROM sys.tables t1 LEFT JOIN sys.tables t2 ON t1.name = t2.name AND t1.object_id <> t2.object_id WHERE (t2.schema_id) IS NOT NULL" 
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+
+    if($datatable.Rows.Count -gt 0)
+    {
+         $msg = "WARNING: ValidateTableNames found some tables names in multiple schemas in this database:" 
+         Write-Host $msg -foreground Yellow
+         [void]$errorSummary.AppendLine($msg)
+         
+         foreach ($row in $datatable) 
+         {
+            $msg = "- " +$row.TableName + " seems to exist in multiple schemas!" 
+            Write-Host $msg -foreground Yellow
+            [void]$errorSummary.AppendLine($msg)
+         }
+    }
+    else
+    {
+        Write-Host "ValidateTableNames did not detect any issue" -ForegroundColor Green
+    }
+}
+
 function ValidateDSSMember(){
     Try
     {
@@ -739,6 +764,7 @@ function ValidateDSSMember(){
         ### Validations ###
         ValidateProvisionMarker
         ValidateCircularReferences
+        ValidateTableNames
 
         if($runnableScript.Length -gt 0)
         {
@@ -915,7 +941,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.3 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.5 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
