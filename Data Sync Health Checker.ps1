@@ -7,6 +7,11 @@
 $MonitoringEnabled = $false  #Set as $true or $false
 $MonitoringIntervalInSeconds = 60
 
+$ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsCommandTimeout = 600 #seconds
+
+
 #Sync metadata database
 $SyncDbServer = '.database.windows.net'
 $SyncDbDatabase = ''
@@ -24,7 +29,6 @@ $MemberServer = '.database.windows.net'
 $MemberDatabase = '' 
 $MemberUser = ''
 $MemberPassword = ''
-
 
 
 
@@ -140,37 +144,49 @@ function ValidateTables([Array] $userTables){
                 
            }
         
-        ValidateTrackingRecords $userTable $TablePKList             
+        if($ExtendedValidationsEnabled){ ValidateTrackingRecords $userTable $TablePKList }
     }
 }
 
 function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
-
-    #Write-Host "ValidateTrackingRecords" $table -foreground "Red"
+    Try{
+    Write-Host "Running ValidateTrackingRecords for" $table "..." -foreground Green
     $tableNameWithoutSchema = ($table.Replace("[","").Replace("]","").Split('.'))[1]
     
     $sbQuery = New-Object -TypeName "System.Text.StringBuilder"
     
     [void]$sbQuery.Append("SELECT COUNT(*) AS C FROM DataSync.")
     [void]$sbQuery.Append($tableNameWithoutSchema)
-    [void]$sbQuery.Append("_dss_tracking t WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
+    [void]$sbQuery.Append("_dss_tracking t WITH (NOLOCK) WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
     [void]$sbQuery.Append($table)
-    [void]$sbQuery.Append(" s WHERE ")
+    [void]$sbQuery.Append(" s WITH (NOLOCK) WHERE ")
     for ($i=0; $i -lt $tablePKList.Length; $i++) {
         if($i -gt 0) { [void]$sbQuery.Append(" AND ") }
         [void]$sbQuery.Append("t."+$tablePKList[$i] + " = s."+$tablePKList[$i] )
     }
     [void]$sbQuery.Append(")")
     
+    $previousMemberCommandTimeout = $MemberCommand.CommandTimeout
+    $MemberCommand.CommandTimeout = $ExtendedValidationsCommandTimeout
     $MemberCommand.CommandText = $sbQuery.ToString()
     $result = $MemberCommand.ExecuteReader()
     $datatable = new-object “System.Data.DataTable”
     $datatable.Load($result)
     $count = $datatable | select C -ExpandProperty C
+    $MemberCommand.CommandTimeout = $previousMemberCommandTimeout
+
     if($count -ne 0){
         $msg = "WARNING: Tracking Records for Table " + $table + " may have " + $count + " invalid records!" 
         Write-Host $msg -foreground Red
         [void]$errorSummary.AppendLine($msg) 
+    }
+    else{        $msg = "No issues detected in Tracking Records for Table " + $table 
+        Write-Host $msg -foreground Green    }
+    
+    }
+    Catch
+    {        Write-Host "Error at ValidateTrackingRecords" $table -foreground "Red"
+        Write-Host $_.Exception.Message        
     }     
 }
 
@@ -819,8 +835,8 @@ function Monitor(){
 
         while($true){
             
+            Write-Host "Waiting..." $MonitoringIntervalInSeconds "seconds..." -ForegroundColor Green
             Start-Sleep -s $MonitoringIntervalInSeconds
-
             Write-Host "Monitoring ("$lasttime.toString("yyyy-MM-dd HH:mm:ss")")..." -ForegroundColor Green
 
             $query = "select o.name AS What
@@ -832,7 +848,7 @@ function Monitor(){
                       inner join sys.schemas s
                       on s.schema_id=o.schema_id
                       where s.name = 'DataSync'
-                      and p.last_execution_time > '" + $lasttime.toString("yyyy-MM-dd HH:mm:ss") +"'" 
+                      and p.last_execution_time > '" + $lasttime.toString("yyyy-MM-dd HH:mm:ss") +"' order by p.last_execution_time desc" 
 
             $HubCommand.CommandText = $query
             $HubResult = $HubCommand.ExecuteReader()
@@ -899,7 +915,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.2.2 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.3 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
@@ -908,6 +924,7 @@ $Server = $HubServer
 $Database = $HubDatabase 
 $MbrUser = $HubUser
 $MbrPassword = $HubPassword
+$ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
 ValidateDSSMember
 
 #Member
@@ -915,6 +932,7 @@ $Server = $MemberServer
 $Database = $MemberDatabase 
 $MbrUser = $MemberUser
 $MbrPassword = $MemberPassword
+$ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember 
 ValidateDSSMember
 
 #Monitor
