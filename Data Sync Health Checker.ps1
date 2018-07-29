@@ -179,12 +179,15 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
         Write-Host $msg -foreground Red
         [void]$errorSummary.AppendLine($msg) 
     }
-    else{        $msg = "No issues detected in Tracking Records for Table " + $table 
-        Write-Host $msg -foreground Green    }
+    else{
+        $msg = "No issues detected in Tracking Records for Table " + $table 
+        Write-Host $msg -foreground Green
+    }
     
     }
     Catch
-    {        Write-Host "Error at ValidateTrackingRecords" $table -foreground "Red"
+    {
+        Write-Host "Error at ValidateTrackingRecords" $table -foreground "Red"
         Write-Host $_.Exception.Message        
     }     
 }
@@ -496,6 +499,27 @@ function ValidateTableNames{
     }
 }
 
+function GetUIHistory{
+    $query = "SELECT TOP(20) ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult, 
+CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1]', 'nvarchar(max)') as Error
+FROM [dss].[UIHistory] AS ui
+INNER JOIN [dss].[syncgroup] AS sg on ui.syncgroupId = sg.id
+INNER JOIN [dss].[userdatabase] AS ud on ui.databaseid = ud.id
+ORDER BY ui.[completionTime] DESC"
+ 
+    $SyncDbCommand.CommandText = $query
+    $result = $SyncDbCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+
+    if($datatable.Rows.Count -gt 0)
+    {
+         $msg = "UI History:" 
+         Write-Host $msg -foreground White         
+         $datatable | Format-Table -Wrap -AutoSize
+    }    
+}
+
 function ValidateDSSMember(){
     Try
     {
@@ -539,6 +563,8 @@ function ValidateDSSMember(){
         
         Write-Host $SyncDbMembersDataTableA.C sync groups / $SyncDbMembersDataTableB.C sync group members / $SyncDbMembersDataTableC.C sync agents found in this sync metadata database
         Write-Host
+        GetUIHistory        
+        Write-Host
         Write-Host Getting scopes in SyncDB for this member database...
         
         $SyncDbCommand.CommandText = "SELECT m.[scopename]
@@ -573,7 +599,7 @@ function ValidateDSSMember(){
         $SyncDbMembersDataTable.Load($SyncDbMembersResult)
         
         Write-Host $SyncDbMembersDataTable.Rows.Count members found in this sync metadata database
-        $SyncDbMembersDataTable.Rows | Sort-Object -Property scopename | Select scopename, SyncGroupName, MemberName, SyncDirection, State, HubState, JobId, Messages | Format-Table -AutoSize
+        $SyncDbMembersDataTable.Rows | Sort-Object -Property scopename | Select scopename, SyncGroupName, MemberName, SyncDirection, State, HubState, JobId, Messages | Format-Table -Wrap -AutoSize
         $scopesList = $SyncDbMembersDataTable.Rows | Select -ExpandProperty scopename
         
         if(($SyncDbMembersDataTable.Rows | Measure-Object Messages -Sum).Sum -gt 0)
@@ -604,7 +630,7 @@ function ValidateDSSMember(){
             $SyncJobsResult = $SyncDbCommand.ExecuteReader()
             $SyncJobsDataTable = new-object “System.Data.DataTable”
             $SyncJobsDataTable.Load($SyncJobsResult)
-            $SyncJobsDataTable | Format-Table -AutoSize
+            $SyncJobsDataTable | Format-Table -Wrap -AutoSize
         }
         
         $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
@@ -631,7 +657,7 @@ function ValidateDSSMember(){
         $MemberScopes.Load($MemberResult)
          
         Write-Host $MemberScopes.Rows.Count scopes found in member
-        $MemberScopes.Rows | Select sync_scope_name, scope_config_id, scope_status, scope_local_id | Sort-Object -Property sync_scope_name | Format-Table -AutoSize
+        $MemberScopes.Rows | Select sync_scope_name, scope_config_id, scope_status, scope_local_id | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize
         Write-Host
         
         $global:Connection = $MemberConnection
@@ -941,7 +967,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.5 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.6 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
