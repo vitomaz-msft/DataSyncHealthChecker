@@ -4,6 +4,7 @@
 #FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 #WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+$HealthChecksEnabled = $true  #Set as $true or $false
 $MonitoringEnabled = $false  #Set as $true or $false
 $MonitoringIntervalInSeconds = 60
 
@@ -523,6 +524,7 @@ ORDER BY ui.[completionTime] DESC"
 function ValidateDSSMember(){
     Try
     {
+        if(-not($HealthChecksEnabled)) {return}
         $runnableScript = New-Object -TypeName "System.Text.StringBuilder"
         $errorSummary = New-Object -TypeName "System.Text.StringBuilder"
         $allTrackingTableList = New-Object System.Collections.ArrayList
@@ -879,7 +881,7 @@ function Monitor(){
             Break
         } 
         
-        $HubCommand.CommandText = "SELECT getdate() as now"
+        $HubCommand.CommandText = "SELECT GETUTCDATE() as now"
         $result = $HubCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
         $datatable.Load($result)
@@ -889,7 +891,12 @@ function Monitor(){
             
             Write-Host "Waiting..." $MonitoringIntervalInSeconds "seconds..." -ForegroundColor Green
             Start-Sleep -s $MonitoringIntervalInSeconds
-            Write-Host "Monitoring ("$lasttime.toString("yyyy-MM-dd HH:mm:ss")")..." -ForegroundColor Green
+            $lastTimeString = ([DateTime]$lasttime).toString("yyyy-MM-dd HH:mm:ss")
+            Write-Host $lastTimeString
+            $lastTimeString = $lastTimeString.Replace('.',':')
+            Write-Host $lastTimeString
+
+            Write-Host "Monitoring ("$lastTimeString")..." -ForegroundColor Green
 
             $query = "select o.name AS What
                       ,p.last_execution_time AS LastExecutionTime
@@ -900,7 +907,7 @@ function Monitor(){
                       inner join sys.schemas s
                       on s.schema_id=o.schema_id
                       where s.name = 'DataSync'
-                      and p.last_execution_time > '" + $lasttime.toString("yyyy-MM-dd HH:mm:ss") +"' order by p.last_execution_time desc" 
+                      and p.last_execution_time > '" + $lastTimeString +"' order by p.last_execution_time desc" 
 
             $HubCommand.CommandText = $query
             $HubResult = $HubCommand.ExecuteReader()
@@ -909,7 +916,7 @@ function Monitor(){
 
             if($datatable.Rows.Count -gt 0)
             {    
-                 Write-Host "Hub Monitor ("$lasttime.toString("yyyy-MM-dd HH:mm:ss")"): new records:" -ForegroundColor Green
+                 Write-Host "Hub Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
                  Write-Host ($datatable | Format-Table | Out-String)
             }
             
@@ -921,7 +928,7 @@ function Monitor(){
 
             if($datatable.Rows.Count -gt 0)
             {    
-                 Write-Host "Member Monitor ("$lasttime.toString("yyyy-MM-dd HH:mm:ss")"): new records:" -ForegroundColor Green
+                 Write-Host "Member Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
                  Write-Host ($datatable | Format-Table | Out-String)
             }
             
@@ -945,7 +952,7 @@ function Monitor(){
 
             if($datatable.Rows.Count -gt 0)
             {    
-                 Write-Host "Hub Monitor running ("$lasttime.toString("yyyy-MM-dd HH:mm:ss")"): new records:" -ForegroundColor Green
+                 Write-Host "Hub Monitor (running) ("$lastTimeString"): new records:" -ForegroundColor Green
                  Write-Host ($datatable | Format-Table | Out-String)
             }
             
@@ -956,7 +963,7 @@ function Monitor(){
 
             if($datatable.Rows.Count -gt 0)
             {
-                Write-Host "Member Monitor running ("$lasttime.toString("yyyy-MM-dd HH:mm:ss")"): new records:" -ForegroundColor Green
+                Write-Host "Member Monitor (running) ("$lastTimeString"): new records:" -ForegroundColor Green
                 Write-Host ($datatable | Format-Table | Out-String)
             }
             
@@ -967,7 +974,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.6 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.6.1 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
