@@ -500,6 +500,41 @@ function ValidateTableNames{
     }
 }
 
+function ValidateObjectNames{
+    $query = "SELECT table_schema, 
+       table_name, 
+       column_name 
+FROM   information_schema.columns 
+WHERE  table_name LIKE '%.%' 
+        OR table_name LIKE '%[[]%' 
+        OR table_name LIKE '%]%' 
+        OR column_name LIKE '%.%' 
+        OR column_name LIKE '%[[]%' 
+        OR column_name LIKE '%]%' " 
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+
+    if($datatable.Rows.Count -gt 0)
+    {
+         $msg = "WARNING: ValidateObjectNames found some issues:" 
+         Write-Host $msg -foreground Yellow
+         [void]$errorSummary.AppendLine($msg)
+         
+         foreach ($row in $datatable) 
+         {
+            $msg = "- " +$row.table_schema +" | " +$row.table_name +" | " +$row.column_name
+            Write-Host $msg -foreground Yellow
+            [void]$errorSummary.AppendLine($msg)
+         }
+    }
+    else
+    {
+        Write-Host "ValidateObjectNames did not detect any issue" -ForegroundColor Green
+    }
+}
+
 function GetUIHistory{
     $query = "SELECT TOP(20) ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult, 
 CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1]', 'nvarchar(max)') as Error
@@ -793,6 +828,7 @@ function ValidateDSSMember(){
         ValidateProvisionMarker
         ValidateCircularReferences
         ValidateTableNames
+        ValidateObjectNames
 
         if($runnableScript.Length -gt 0)
         {
@@ -974,7 +1010,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.6.1 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.7 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
