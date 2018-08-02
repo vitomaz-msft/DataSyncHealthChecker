@@ -445,6 +445,8 @@ where schema_name(tbl1.schema_id) <> 'DataSync'and tbl2.name is not null and mar
 }
 
 function ValidateCircularReferences{
+Try
+{
     $query = "SELECT OBJECT_SCHEMA_NAME(fk1.parent_object_id) + '.' + OBJECT_NAME(fk1.parent_object_id) Table1, OBJECT_SCHEMA_NAME(fk2.parent_object_id) + '.' + OBJECT_NAME(fk2.parent_object_id) Table2
 ,fk1.name FK1Name, fk2.name FK2Name
 FROM sys.foreign_keys AS fk1
@@ -473,8 +475,16 @@ WHERE fk1.parent_object_id <> fk2.parent_object_id;"
         Write-Host "ValidateCircularReferences did not detect any issue" -ForegroundColor Green
     }
 }
+Catch
+{
+    Write-Host ValidateCircularReferences exception:
+    Write-Host $_.Exception.Message    
+}
+}
 
 function ValidateTableNames{
+Try
+{
     $query = "SELECT DISTINCT t1.name AS TableName FROM sys.tables t1 LEFT JOIN sys.tables t2 ON t1.name = t2.name AND t1.object_id <> t2.object_id WHERE (t2.schema_id) IS NOT NULL" 
     $MemberCommand.CommandText = $query
     $result = $MemberCommand.ExecuteReader()
@@ -499,8 +509,16 @@ function ValidateTableNames{
         Write-Host "ValidateTableNames did not detect any issue" -ForegroundColor Green
     }
 }
+Catch
+{
+    Write-Host ValidateTableNames exception:
+    Write-Host $_.Exception.Message    
+}
+}
 
 function ValidateObjectNames{
+Try
+{
     $query = "SELECT table_schema, 
        table_name, 
        column_name 
@@ -534,8 +552,16 @@ WHERE  table_name LIKE '%.%'
         Write-Host "ValidateObjectNames did not detect any issue" -ForegroundColor Green
     }
 }
+Catch
+{
+    Write-Host ValidateObjectNames exception:
+    Write-Host $_.Exception.Message    
+}
+}
 
 function GetUIHistory{
+Try
+{
     $query = "SELECT TOP(20) ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult, 
 CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1]', 'nvarchar(max)') as Error
 FROM [dss].[UIHistory] AS ui
@@ -553,7 +579,13 @@ ORDER BY ui.[completionTime] DESC"
          $msg = "UI History:" 
          Write-Host $msg -foreground White         
          $datatable | Format-Table -Wrap -AutoSize
-    }    
+    }
+}
+Catch
+{
+    Write-Host GetUIHistory exception:
+    Write-Host $_.Exception.Message    
+}    
 }
 
 function ValidateDSSMember(){
@@ -683,11 +715,18 @@ function ValidateDSSMember(){
         {
             Write-Host $_.Exception.Message
             Break
-        }                
-        Write-Host Getting scopes in this member database...
-        
+        }    
+
         $MemberCommand = New-Object System.Data.SQLClient.SQLCommand
         $MemberCommand.Connection = $MemberConnection
+        
+        ### Database Validations ###
+        ValidateCircularReferences
+        ValidateTableNames
+        ValidateObjectNames
+                    
+        Write-Host Getting scopes in this member database...
+        
         $MemberCommand.CommandText = "SELECT [sync_scope_name], [scope_local_id], [scope_config_id],[config_data],[scope_status] FROM [DataSync].[scope_config_dss] AS sc LEFT OUTER JOIN [DataSync].[scope_info_dss] AS si ON si.scope_config_id = sc.config_id"
         $MemberResult = $MemberCommand.ExecuteReader()
         $MemberScopes = new-object “System.Data.DataTable”
@@ -826,9 +865,6 @@ function ValidateDSSMember(){
         
         ### Validations ###
         ValidateProvisionMarker
-        ValidateCircularReferences
-        ValidateTableNames
-        ValidateObjectNames
 
         if($runnableScript.Length -gt 0)
         {
@@ -928,10 +964,8 @@ function Monitor(){
             Write-Host "Waiting..." $MonitoringIntervalInSeconds "seconds..." -ForegroundColor Green
             Start-Sleep -s $MonitoringIntervalInSeconds
             $lastTimeString = ([DateTime]$lasttime).toString("yyyy-MM-dd HH:mm:ss")
-            Write-Host $lastTimeString
             $lastTimeString = $lastTimeString.Replace('.',':')
-            Write-Host $lastTimeString
-
+            
             Write-Host "Monitoring ("$lastTimeString")..." -ForegroundColor Green
 
             $query = "select o.name AS What
@@ -1010,7 +1044,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.7 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.7.1 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
