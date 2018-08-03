@@ -43,7 +43,7 @@ function ValidateTables([Array] $userTables){
                      c.name 'ColumnName',
                      t.Name 'Datatype',
                      c.max_length 'MaxLength',
-                     c.is_nullable 'IsNullable'--,
+                     c.is_nullable 'IsNullable'
                      FROM sys.columns c
                      INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
                      WHERE c.object_id = OBJECT_ID('" + $userTable + "')" 
@@ -493,7 +493,7 @@ Try
 
     if($datatable.Rows.Count -gt 0)
     {
-         $msg = "WARNING: ValidateTableNames found some tables names in multiple schemas in this database:" 
+         $msg = "INFO: ValidateTableNames found some tables names in multiple schemas in this database:" 
          Write-Host $msg -foreground Yellow
          [void]$errorSummary.AppendLine($msg)
          
@@ -542,7 +542,7 @@ WHERE  table_name LIKE '%.%'
          
          foreach ($row in $datatable) 
          {
-            $msg = "- " +$row.table_schema +" | " +$row.table_name +" | " +$row.column_name
+            $msg = "- [" +$row.table_schema +"].[" +$row.table_name +"].[" +$row.column_name + "]"
             Write-Host $msg -foreground Yellow
             [void]$errorSummary.AppendLine($msg)
          }
@@ -550,6 +550,40 @@ WHERE  table_name LIKE '%.%'
     else
     {
         Write-Host "ValidateObjectNames did not detect any issue" -ForegroundColor Green
+    }
+}
+Catch
+{
+    Write-Host ValidateObjectNames exception:
+    Write-Host $_.Exception.Message    
+}
+}
+
+function DetectComputedColumns{
+Try
+{
+    $query = "SELECT SCHEMA_NAME(T.schema_id) AS SchemaName, T.name AS TableName, C.name AS ColumnName FROM sys.objects AS T JOIN sys.columns AS C ON T.object_id = C.object_id WHERE  T.type = 'U' AND C.is_computed = 1;" 
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+
+    if($datatable.Rows.Count -gt 0)
+    {
+         $msg = "INFO: Computed columns detected (they cannot be part of sync schema):" 
+         Write-Host $msg -foreground Yellow
+         [void]$errorSummary.AppendLine($msg)
+         
+         foreach ($row in $datatable) 
+         {
+            $msg = "- [" +$row.SchemaName +"].[" +$row.TableName +"].[" +$row.ColumnName + "]"
+            Write-Host $msg -foreground Yellow
+            [void]$errorSummary.AppendLine($msg)
+         }
+    }
+    else
+    {
+        Write-Host "DetectComputedColumns did not detect any computed column" -ForegroundColor Green
     }
 }
 Catch
@@ -724,6 +758,7 @@ function ValidateDSSMember(){
         ValidateCircularReferences
         ValidateTableNames
         ValidateObjectNames
+        DetectComputedColumns
                     
         Write-Host Getting scopes in this member database...
         
@@ -1044,7 +1079,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.7.1 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
