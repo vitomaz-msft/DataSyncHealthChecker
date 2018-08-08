@@ -189,7 +189,7 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
     Catch
     {
         Write-Host "Error at ValidateTrackingRecords" $table -foreground "Red"
-        Write-Host $_.Exception.Message        
+        Write-Host $_.Exception.Message -ForegroundColor Red        
     }     
 }
 
@@ -413,8 +413,10 @@ WHERE t.name IS NULL AND '['+s.name +'].['+OBJECT_NAME(fk.parent_object_id)+']' 
 }
 
 function ValidateProvisionMarker{
+Try
+{
     $query = "select object_name(object_id) TableName, object_id, owner_scope_local_id 
-from datasync.provision_marker_dss where object_id in (
+from DataSync.provision_marker_dss where object_id in (
 select tbl1.object_id from sys.tables tbl1
 left join sys.tables tbl2 on schema_name(tbl2.schema_id) = 'DataSync' and tbl2.name like (tbl1.name + '_dss_tracking')
 left join datasync.provision_marker_dss marker on marker.owner_scope_local_id = 0 and marker.object_id = tbl1.object_id
@@ -442,6 +444,12 @@ where schema_name(tbl1.schema_id) <> 'DataSync'and tbl2.name is not null and mar
     {
         Write-Host "ValidateProvisionMarker did not detect any issue" -ForegroundColor Green
     }
+}
+Catch
+{
+    Write-Host ValidateProvisionMarker exception:
+    Write-Host $_.Exception.Message -ForegroundColor Red    
+}
 }
 
 function ValidateCircularReferences{
@@ -478,7 +486,7 @@ WHERE fk1.parent_object_id <> fk2.parent_object_id;"
 Catch
 {
     Write-Host ValidateCircularReferences exception:
-    Write-Host $_.Exception.Message    
+    Write-Host $_.Exception.Message -ForegroundColor Red    
 }
 }
 
@@ -512,7 +520,7 @@ Try
 Catch
 {
     Write-Host ValidateTableNames exception:
-    Write-Host $_.Exception.Message    
+    Write-Host $_.Exception.Message -ForegroundColor Red    
 }
 }
 
@@ -555,7 +563,7 @@ WHERE  table_name LIKE '%.%'
 Catch
 {
     Write-Host ValidateObjectNames exception:
-    Write-Host $_.Exception.Message    
+    Write-Host $_.Exception.Message -ForegroundColor Red    
 }
 }
 
@@ -589,7 +597,7 @@ Try
 Catch
 {
     Write-Host ValidateObjectNames exception:
-    Write-Host $_.Exception.Message    
+    Write-Host $_.Exception.Message -ForegroundColor Red   
 }
 }
 
@@ -618,7 +626,7 @@ ORDER BY ui.[completionTime] DESC"
 Catch
 {
     Write-Host GetUIHistory exception:
-    Write-Host $_.Exception.Message    
+    Write-Host $_.Exception.Message -ForegroundColor Red   
 }    
 }
 
@@ -741,7 +749,7 @@ function ValidateDSSMember(){
         }
         Catch
         {
-            Write-Host $_.Exception.Message
+            Write-Host $_.Exception.Message -ForegroundColor Red
             Break
         }    
 
@@ -756,19 +764,21 @@ function ValidateDSSMember(){
                     
         Write-Host Getting scopes in this member database...
         
-        $MemberCommand.CommandText = "SELECT [sync_scope_name], [scope_local_id], [scope_config_id],[config_data],[scope_status], CAST([schema_major_version] AS varchar) + '.' + CAST([schema_minor_version] AS varchar) as [Version] FROM [DataSync].[scope_config_dss] AS sc LEFT OUTER JOIN [DataSync].[scope_info_dss] AS si ON si.scope_config_id = sc.config_id LEFT JOIN [DataSync].[schema_info_dss] ON 1=1"
-        $MemberResult = $MemberCommand.ExecuteReader()
-        $MemberScopes = new-object “System.Data.DataTable”
-        $MemberScopes.Load($MemberResult)
-         
-        Write-Host $MemberScopes.Rows.Count scopes found in member
-        $MemberScopes.Rows | Select sync_scope_name, scope_config_id, scope_status, scope_local_id, Version | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize
-        Write-Host
-        
-        $global:Connection = $MemberConnection
-        
-        foreach($scope in $MemberScopes)
+        Try
         {
+            $MemberCommand.CommandText = "SELECT [sync_scope_name], [scope_local_id], [scope_config_id],[config_data],[scope_status], CAST([schema_major_version] AS varchar) + '.' + CAST([schema_minor_version] AS varchar) as [Version] FROM [DataSync].[scope_config_dss] AS sc LEFT OUTER JOIN [DataSync].[scope_info_dss] AS si ON si.scope_config_id = sc.config_id LEFT JOIN [DataSync].[schema_info_dss] ON 1=1"
+            $MemberResult = $MemberCommand.ExecuteReader()
+            $MemberScopes = new-object “System.Data.DataTable”
+            $MemberScopes.Load($MemberResult)
+             
+            Write-Host $MemberScopes.Rows.Count scopes found in member
+            $MemberScopes.Rows | Select sync_scope_name, scope_config_id, scope_status, scope_local_id, Version | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize
+            Write-Host
+            
+            $global:Connection = $MemberConnection
+            
+            foreach($scope in $MemberScopes)
+            {
             Write-Host
             Write-Host "Validating scope " $scope.scope_config_id
             if($scope.sync_scope_name -notin $scopesList)
@@ -848,6 +858,12 @@ function ValidateDSSMember(){
                 ValidateFKDependencies ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)        
                 }
         }
+        }
+        Catch
+        {
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            #Break
+        } 
         
         ### Provisioning Issues ###
         foreach($syncDBscope in $SyncDbMembersDataTable){
@@ -962,7 +978,7 @@ function Monitor(){
         }
         Catch
         {
-            Write-Host $_.Exception.Message
+            Write-Host $_.Exception.Message -ForegroundColor Red
             Break
         }  
 
@@ -978,7 +994,7 @@ function Monitor(){
         }
         Catch
         {
-            Write-Host $_.Exception.Message
+            Write-Host $_.Exception.Message -ForegroundColor Red
             Break
         } 
         
@@ -1073,7 +1089,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8.2 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8.3 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
@@ -1083,15 +1099,15 @@ $Database = $HubDatabase
 $MbrUser = $HubUser
 $MbrPassword = $HubPassword
 $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
-ValidateDSSMember
+if($Server -ne '' -and $Database -ne ''){ ValidateDSSMember }
 
 #Member
 $Server = $MemberServer
 $Database = $MemberDatabase 
 $MbrUser = $MemberUser
 $MbrPassword = $MemberPassword
-$ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember 
-ValidateDSSMember
+$ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
+if($Server -ne '' -and $Database -ne ''){ ValidateDSSMember }
 
 #Monitor
 Monitor
