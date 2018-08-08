@@ -672,16 +672,10 @@ function ValidateDSSMember(){
         
         $SyncDbCommand.CommandText = "SELECT m.[scopename]
         ,sg.name as SyncGroupName
-        ,CAST(sg.schema_description as varchar(max)) as SchemaDescription
-        --,ud.[database] as HubDatabase
-        --,ud.server as HubServer
+        ,CAST(sg.schema_description as nvarchar(max)) as SchemaDescription
         ,m.[name] as MemberName
-        --,m.[memberstate] as State
-        --,m.[hubstate] as HubState
         ,m.[jobid] as JobId
         ,COUNT(mq.[MessageId]) as Messages
-        --,ud2.[server] as MemberServer
-        --,ud2.[database] as MemberDatabase
         ,enum1.Name as State
 		,enum2.Name as HubState
         ,enum3.Name as SyncDirection
@@ -696,7 +690,7 @@ function ValidateDSSMember(){
         left outer join [TaskHosting].[MessageQueue] mq on job.JobId = mq.JobId 
         WHERE (ud.server = '" + $Server + "' and ud.[database] = '" + $Database + "') 
         or (ud2.[server] = '" + $Server + "' and ud2.[database] = '" + $Database + "')
-        GROUP BY m.[scopename],sg.name,CAST(sg.schema_description as varchar(max)),m.[name],m.[memberstate],m.[hubstate],m.[jobid],enum1.Name,enum2.Name,enum3.Name"
+        GROUP BY m.[scopename],sg.name,CAST(sg.schema_description as nvarchar(max)),m.[name],m.[memberstate],m.[hubstate],m.[jobid],enum1.Name,enum2.Name,enum3.Name"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTable = new-object “System.Data.DataTable”
         $SyncDbMembersDataTable.Load($SyncDbMembersResult)
@@ -1079,7 +1073,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8.1 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
