@@ -756,13 +756,13 @@ function ValidateDSSMember(){
                     
         Write-Host Getting scopes in this member database...
         
-        $MemberCommand.CommandText = "SELECT [sync_scope_name], [scope_local_id], [scope_config_id],[config_data],[scope_status] FROM [DataSync].[scope_config_dss] AS sc LEFT OUTER JOIN [DataSync].[scope_info_dss] AS si ON si.scope_config_id = sc.config_id"
+        $MemberCommand.CommandText = "SELECT [sync_scope_name], [scope_local_id], [scope_config_id],[config_data],[scope_status], CAST([schema_major_version] AS varchar) + '.' + CAST([schema_minor_version] AS varchar) as [Version] FROM [DataSync].[scope_config_dss] AS sc LEFT OUTER JOIN [DataSync].[scope_info_dss] AS si ON si.scope_config_id = sc.config_id LEFT JOIN [DataSync].[schema_info_dss] ON 1=1"
         $MemberResult = $MemberCommand.ExecuteReader()
         $MemberScopes = new-object “System.Data.DataTable”
         $MemberScopes.Load($MemberResult)
          
         Write-Host $MemberScopes.Rows.Count scopes found in member
-        $MemberScopes.Rows | Select sync_scope_name, scope_config_id, scope_status, scope_local_id | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize
+        $MemberScopes.Rows | Select sync_scope_name, scope_config_id, scope_status, scope_local_id, Version | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize
         Write-Host
         
         $global:Connection = $MemberConnection
@@ -1073,7 +1073,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8.1 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8.2 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
