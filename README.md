@@ -18,7 +18,7 @@ It also has monitoring capabilities that will let us know which Data Sync stored
 3- Copy the script code from [https://raw.githubusercontent.com/vitomaz-msft/DataSyncHealthChecker/master/Data%20Sync%20Health%20Checker.ps1] and paste it in the PowerShell ISE window.
 
 4 - Set the parameters on the bottom of the script, you need to set server names, database names, users and passwords:
-<code>
+
 $MonitoringEnabled = $false #Set as $true or $false
 $MonitoringIntervalInSeconds = 60
 $ExtendedValidationsEnabledForHub = $false #Attention, this may cause high I/O impact if set to true
@@ -42,5 +42,5 @@ $MemberServer = '.database.windows.net'
 $MemberDatabase = ''
 $MemberUser = ''
 $MemberPassword = ''
-</code>
+
 5 – Run it and send us the results.
