@@ -12,6 +12,7 @@ $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O 
 $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
 $ExtendedValidationsCommandTimeout = 600 #seconds
 
+
 #Sync metadata database
 $SyncDbServer = '.database.windows.net'
 $SyncDbDatabase = ''
@@ -609,6 +610,7 @@ CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1
 FROM [dss].[UIHistory] AS ui
 INNER JOIN [dss].[syncgroup] AS sg on ui.syncgroupId = sg.id
 INNER JOIN [dss].[userdatabase] AS ud on ui.databaseid = ud.id
+WHERE ud.[server] = '" + $Server +"' and ud.[database] = '" + $Database + "'
 ORDER BY ui.[completionTime] DESC"
  
     $SyncDbCommand.CommandText = $query
@@ -673,9 +675,7 @@ function ValidateDSSMember(){
         $SyncDbMembersDataTableC.Load($SyncDbMembersResult)  
         
         Write-Host $SyncDbMembersDataTableA.C sync groups / $SyncDbMembersDataTableB.C sync group members / $SyncDbMembersDataTableC.C sync agents found in this sync metadata database
-        Write-Host
-        GetUIHistory        
-        Write-Host
+
         Write-Host Getting scopes in SyncDB for this member database...
         
         $SyncDbCommand.CommandText = "SELECT m.[scopename]
@@ -756,6 +756,10 @@ function ValidateDSSMember(){
         $MemberCommand = New-Object System.Data.SQLClient.SQLCommand
         $MemberCommand.Connection = $MemberConnection
         
+        Write-Host
+        GetUIHistory        
+        Write-Host
+
         ### Database Validations ###
         ValidateCircularReferences
         ValidateTableNames
@@ -1089,7 +1093,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8.3 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8.4 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
