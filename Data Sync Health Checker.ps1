@@ -6,7 +6,7 @@
 
 $HealthChecksEnabled = $true  #Set as $true or $false
 $MonitoringEnabled = $false  #Set as $true or $false
-$MonitoringIntervalInSeconds = 60
+$MonitoringIntervalInSeconds = 30
 
 $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
 $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
@@ -987,7 +987,7 @@ function Monitor(){
         }  
 
         $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
-        $MemberConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
+        $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
         $MemberCommand = New-Object System.Data.SQLClient.SQLCommand
         $MemberCommand.Connection = $MemberConnection
 
@@ -1010,8 +1010,6 @@ function Monitor(){
 
         while($true){
             
-            Write-Host "Waiting..." $MonitoringIntervalInSeconds "seconds..." -ForegroundColor Green
-            Start-Sleep -s $MonitoringIntervalInSeconds
             $lastTimeString = ([DateTime]$lasttime).toString("yyyy-MM-dd HH:mm:ss")
             $lastTimeString = $lastTimeString.Replace('.',':')
             
@@ -1038,6 +1036,10 @@ function Monitor(){
                  Write-Host "Hub Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
                  Write-Host ($datatable | Format-Table | Out-String)
             }
+            else
+            {
+                Write-Host "- No new records from Hub Monitor (SPs)" -ForegroundColor Green
+            }
             
 
             $MemberCommand.CommandText = $query
@@ -1049,6 +1051,10 @@ function Monitor(){
             {    
                  Write-Host "Member Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
                  Write-Host ($datatable | Format-Table | Out-String)
+            }
+            else
+            {
+                Write-Host "- No new records from Member Monitor (SPs)" -ForegroundColor Green
             }
             
 
@@ -1074,6 +1080,10 @@ function Monitor(){
                  Write-Host "Hub Monitor (running) ("$lastTimeString"): new records:" -ForegroundColor Green
                  Write-Host ($datatable | Format-Table | Out-String)
             }
+            else
+            {
+                Write-Host "- No new records from Hub Monitor (running)" -ForegroundColor Green
+            }
             
             $MemberCommand.CommandText = $query
             $MemberResult = $MemberCommand.ExecuteReader()
@@ -1085,15 +1095,21 @@ function Monitor(){
                 Write-Host "Member Monitor (running) ("$lastTimeString"): new records:" -ForegroundColor Green
                 Write-Host ($datatable | Format-Table | Out-String)
             }
+            else
+            {
+                Write-Host "- No new records from Member Monitor (running)" -ForegroundColor Green
+            }
             
             $lasttime = $lasttime.AddSeconds($MonitoringIntervalInSeconds)
+            Write-Host "Waiting..." $MonitoringIntervalInSeconds "seconds..." -ForegroundColor Green
+            Start-Sleep -s $MonitoringIntervalInSeconds
         }
     }
 }
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8.4 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8.5 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
