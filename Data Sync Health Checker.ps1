@@ -10,7 +10,9 @@ $MonitoringIntervalInSeconds = 30
 
 $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
 $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
-$ExtendedValidationsCommandTimeout = 600 #seconds
+$ExtendedValidationsTableFilter = @("All") # To validate all tables
+#$ExtendedValidationsTableFilter = @("[dbo].[TableName1]","[dbo].[TableName2]") #to filter tables you need to validade, needs to be formated like [SchemaName].[TableName]
+$ExtendedValidationsCommandTimeout = 900 #seconds
 
 
 #Sync metadata database
@@ -145,7 +147,10 @@ function ValidateTables([Array] $userTables){
                 
            }
         
-        if($ExtendedValidationsEnabled){ ValidateTrackingRecords $userTable $TablePKList }
+        if($ExtendedValidationsEnabled -and (($ExtendedValidationsTableFilter -contains 'All') -or ($ExtendedValidationsTableFilter -contains $userTable)))
+        { 
+            ValidateTrackingRecords $userTable $TablePKList 
+        }
     }
 }
 
@@ -1109,7 +1114,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8.5 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8.6 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
