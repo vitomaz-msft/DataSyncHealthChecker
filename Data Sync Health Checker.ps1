@@ -160,17 +160,33 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
     $tableNameWithoutSchema = ($table.Replace("[","").Replace("]","").Split('.'))[1]
     
     $sbQuery = New-Object -TypeName "System.Text.StringBuilder"
+    $sbDeleteQuery = New-Object -TypeName "System.Text.StringBuilder"
     
     [void]$sbQuery.Append("SELECT COUNT(*) AS C FROM DataSync.")
     [void]$sbQuery.Append($tableNameWithoutSchema)
     [void]$sbQuery.Append("_dss_tracking t WITH (NOLOCK) WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
     [void]$sbQuery.Append($table)
     [void]$sbQuery.Append(" s WITH (NOLOCK) WHERE ")
+    
+    [void]$sbDeleteQuery.Append("DELETE DataSync.")
+    [void]$sbDeleteQuery.Append($tableNameWithoutSchema)
+    [void]$sbDeleteQuery.Append("_dss_tracking FROM DataSync.")
+    [void]$sbDeleteQuery.Append($tableNameWithoutSchema)
+    [void]$sbDeleteQuery.Append("_dss_tracking t WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
+    [void]$sbDeleteQuery.Append($table)
+    [void]$sbDeleteQuery.Append(" s WHERE ")
+    
     for ($i=0; $i -lt $tablePKList.Length; $i++) {
-        if($i -gt 0) { [void]$sbQuery.Append(" AND ") }
+        if($i -gt 0) 
+        { 
+            [void]$sbQuery.Append(" AND ")
+            [void]$sbDeleteQuery.Append(" AND ")
+        }
         [void]$sbQuery.Append("t."+$tablePKList[$i] + " = s."+$tablePKList[$i] )
+        [void]$sbDeleteQuery.Append("t."+$tablePKList[$i] + " = s."+$tablePKList[$i] )
     }
     [void]$sbQuery.Append(")")
+    [void]$sbDeleteQuery.Append(")")
     
     $previousMemberCommandTimeout = $MemberCommand.CommandTimeout
     $MemberCommand.CommandTimeout = $ExtendedValidationsCommandTimeout
@@ -184,7 +200,9 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
     if($count -ne 0){
         $msg = "WARNING: Tracking Records for Table " + $table + " may have " + $count + " invalid records!" 
         Write-Host $msg -foreground Red
+        Write-Host $sbDeleteQuery.ToString() -foreground Yellow
         [void]$errorSummary.AppendLine($msg) 
+        [void]$errorSummary.AppendLine($sbDeleteQuery.ToString()) 
     }
     else{
         $msg = "No issues detected in Tracking Records for Table " + $table 
@@ -1114,7 +1132,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8.6 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v3.8.7 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
@@ -1124,7 +1142,13 @@ $Database = $HubDatabase
 $MbrUser = $HubUser
 $MbrPassword = $HubPassword
 $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
-if($Server -ne '' -and $Database -ne ''){ ValidateDSSMember }
+if($Server -ne '' -and $Database -ne '')
+{
+    Write-Host
+    Write-Host ***************** Validating Hub ********************** -ForegroundColor Green
+    Write-Host 
+    ValidateDSSMember 
+}
 
 #Member
 $Server = $MemberServer
@@ -1132,7 +1156,13 @@ $Database = $MemberDatabase
 $MbrUser = $MemberUser
 $MbrPassword = $MemberPassword
 $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
-if($Server -ne '' -and $Database -ne ''){ ValidateDSSMember }
+if($Server -ne '' -and $Database -ne '')
+{    
+    Write-Host
+    Write-Host ***************** Validating Member ********************** -ForegroundColor Green
+    Write-Host
+    ValidateDSSMember
+}
 
 #Monitor
 Monitor

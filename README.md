@@ -17,11 +17,13 @@ It also has monitoring capabilities that will let us know which Data Sync stored
 ```powershell
 $HealthChecksEnabled = $true  #Set as $true or $false
 $MonitoringEnabled = $false  #Set as $true or $false
-$MonitoringIntervalInSeconds = 60
+$MonitoringIntervalInSeconds = 30
 
-$ExtendedValidationsEnabledForHub = $false #Attention, this may cause high I/O impact if set to true
-$ExtendedValidationsEnabledForMember = $false #Attention, this may cause high I/O impact if set to true
-$ExtendedValidationsCommandTimeout = 600 #seconds
+$ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsTableFilter = @("All") # To validate all tables
+#$ExtendedValidationsTableFilter = @("[dbo].[TableName1]","[dbo].[TableName2]") #to filter tables you need to validade, needs to be formated like [SchemaName].[TableName]
+$ExtendedValidationsCommandTimeout = 900 #seconds
 
 #Sync metadata database
 $SyncDbServer = '.database.windows.net'
