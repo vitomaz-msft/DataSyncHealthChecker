@@ -11,7 +11,7 @@ $MonitoringIntervalInSeconds = 30
 $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
 $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
 $ExtendedValidationsTableFilter = @("All") # To validate all tables
-#$ExtendedValidationsTableFilter = @("[dbo].[TableName1]","[dbo].[TableName2]") #to filter tables you need to validade, needs to be formated like [SchemaName].[TableName]
+#$ExtendedValidationsTableFilter = @("[dbo].[TableName1]","[dbo].[TableName2]") #to filter tables you need to validate, needs to be formatted like [SchemaName].[TableName]
 $ExtendedValidationsCommandTimeout = 900 #seconds
 
 
