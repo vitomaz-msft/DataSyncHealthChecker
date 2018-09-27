@@ -37,7 +37,19 @@ $MemberPassword = ''
 
 
 
-function ValidateTables([Array] $userTables){    
+function ValidateTablesVSLocalSchema([Array] $userTables){
+    
+    if($userTables.Count -eq 0)
+    {
+        $msg= "WARNING: member schema with 0 tables was detected, maybe related to provisioning issues."
+        Write-Host $msg -foreground Red
+        [void]$errorSummary.AppendLine($msg)
+    }
+    else
+    {
+        Write-Host Schema has $userTables.Count tables
+    }
+        
     foreach ($userTable in $userTables) 
     {
         $TablePKList = New-Object System.Collections.ArrayList       
@@ -55,21 +67,18 @@ function ValidateTables([Array] $userTables){
         $datatable = new-object “System.Data.DataTable”
         $datatable.Load($result)
 
-        $syncGroupSchemaColumns = $global:sgSchemaXml | Where-Object {$_.QuotedTableName -eq $userTable} | Select -ExpandProperty ColumnsToSync
-        
-        foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
-        {
-                $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
-                if(!$scopeCol)
-                {
-                    $msg= "WARNING: "+ $userTable+ ".["+$syncGroupSchemaColumn.Name+"] is missing in this database but exist in sync group schema, maybe preventing re-provisioning!"
-                    #$msg2= "ALTER TABLE " + $userTable + " ADD " +$syncGroupSchemaColumn.Name +" " + $syncGroupSchemaColumn.DataType
-                    Write-Host $msg -foreground Red
-                    #Write-Host $msg2 -foreground Yellow
-                    [void]$errorSummary.AppendLine($msg)
-                    #[void]$errorSummary.AppendLine($msg2)
-                }                
-           }
+        #$syncGroupSchemaColumns = $global:sgSchemaXml | Where-Object {$_.QuotedTableName -eq $userTable} | Select -ExpandProperty ColumnsToSync
+        #
+        #foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
+        #{
+        #        $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
+        #        if(!$scopeCol)
+        #        {
+        #            $msg= "WARNING: "+ $userTable+ ".["+$syncGroupSchemaColumn.Name+"] is missing in this database but exist in sync group schema, maybe preventing re-provisioning!"
+        #            Write-Host $msg -foreground Red
+        #            [void]$errorSummary.AppendLine($msg)                    
+        #        }                
+        #}
 
         foreach ($userColumn in $datatable)
         {
@@ -154,6 +163,58 @@ function ValidateTables([Array] $userTables){
     }
 }
 
+function ValidateTablesVSSyncDbSchema(){
+    
+    $syncGroupSchemaTables = $global:sgSchemaXml | Select -ExpandProperty QuotedTableName
+       
+    foreach ($syncGroupSchemaTable in $syncGroupSchemaTables) 
+    {
+        $syncGroupSchemaColumns = $global:sgSchemaXml | Where-Object {$_.QuotedTableName -eq $syncGroupSchemaTable} | Select -ExpandProperty ColumnsToSync
+    
+        $query = "SELECT 
+                     c.name 'ColumnName',
+                     t.Name 'Datatype',
+                     c.max_length 'MaxLength',
+                     c.is_nullable 'IsNullable'
+                     FROM sys.columns c
+                     INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+                     WHERE c.object_id = OBJECT_ID('" + $syncGroupSchemaTable + "')" 
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        if($datatable.Rows.Count -eq 0)
+        {
+            $msg= "WARNING: "+ $syncGroupSchemaTable + " does not exist in the database but exist in the sync group schema."
+            Write-Host $msg -foreground Red
+            [void]$errorSummary.AppendLine($msg)
+        }
+        else
+        {        
+            foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
+            {
+                $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
+                if(!$scopeCol)
+                {
+                    $msg= "WARNING: "+ $syncGroupSchemaTable+ ".["+$syncGroupSchemaColumn.Name+"] is missing in this database but exist in sync group schema, maybe preventing provisioning/re-provisioning!"
+                    Write-Host $msg -foreground Red
+                    [void]$errorSummary.AppendLine($msg)                
+                }
+                else
+                {
+                    if($syncGroupSchemaColumn.DataType -ne $scopeCol.Datatype)
+                    { 
+                        $msg="WARNING: " + $syncGroupSchemaTable + ".["+$syncGroupSchemaColumn.Name+"] has a different datatype as the one defined in the sync group schema! ("+$syncGroupSchemaColumn.DataType+" VS "+$scopeCol.Datatype+")"
+                        Write-Host $msg -foreground "Red"
+                        [void]$errorSummary.AppendLine($msg)                    
+                    }
+                }               
+            }
+        }
+    }
+}
+
 function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
     Try{
     Write-Host "Running ValidateTrackingRecords for" $table "..." -foreground Green
@@ -218,7 +279,11 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
 }
 
 function ValidateTrackingTables([Array] $tables){
-    $allTrackingTableList.AddRange($tables)  
+    if($tables.Count -gt 0)
+    {
+        $allTrackingTableList.AddRange($tables)
+    }
+    
     foreach ($table in $tables) 
     {
         ValidateTrackingTable($table)
@@ -241,7 +306,11 @@ function ValidateTrackingTable([String] $table){
 }
 
 function ValidateTriggers([Array] $triggers){ 
-    $allTriggersList.AddRange($triggers)
+    if($triggers.Count -gt 0)
+    {    
+        $allTriggersList.AddRange($triggers)
+    }
+    
     foreach ($trigger in $triggers) 
     {
         ValidateTrigger($trigger)
@@ -269,8 +338,12 @@ function ValidateTrigger([String] $triggerName){
         Write-Host "WARNING: Trigger " $triggerName "IS MISSING!" -foreground "Red" }
 }
 
-function ValidateSPs([Array] $SPs){ 
-    $allSPsList.AddRange($SPs)
+function ValidateSPs([Array] $SPs){
+    if($SPs.Count -gt 0)
+    { 
+        $allSPsList.AddRange($SPs)
+    }
+
     foreach ($SP in $SPs) 
     {
         ValidateSP($SP)
@@ -591,6 +664,32 @@ Catch
 }
 }
 
+function DetectProvisioningIssues{
+    
+    $query = "with TrackingTables as(
+    select REPLACE(name,'_dss_tracking','') as TrackingTableOrigin, name TrackingTable
+    from sys.tables
+    where SCHEMA_NAME(schema_id) = 'DataSync'
+    AND [name] not in ('schema_info_dss','scope_info_dss','scope_config_dss','provision_marker_dss')
+    )
+    select TrackingTable
+    from TrackingTables c
+    left outer join sys.tables t on c.TrackingTableOrigin = t.[name]
+    where t.[name] is null"
+ 
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+
+    foreach($extraTrackingTable in $datatable)
+    {
+        $msg= "WARNING: "+ $extraTrackingTable.TrackingTable + " exists but the corresponding user table does not exist! this maybe preventing provisioning/re-provisioning!"
+        Write-Host $msg -foreground Red
+        [void]$errorSummary.AppendLine($msg) 
+    }
+}
+
 function DetectComputedColumns{
 Try
 {
@@ -788,6 +887,7 @@ function ValidateDSSMember(){
         ValidateTableNames
         ValidateObjectNames
         DetectComputedColumns
+        DetectProvisioningIssues
                     
         Write-Host Getting scopes in this member database...
         
@@ -856,9 +956,10 @@ function ValidateDSSMember(){
                 }
                         
                 ### Validations ###
-        
+                        
                 #Tables
-                ValidateTables ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)
+                ValidateTablesVSSyncDbSchema
+                ValidateTablesVSLocalSchema ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)
         
                 #Tracking Tables
                 ValidateTrackingTables($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty TrackingTable)
@@ -1132,7 +1233,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v3.8.7 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.0 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
