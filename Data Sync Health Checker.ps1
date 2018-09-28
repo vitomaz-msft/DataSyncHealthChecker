@@ -7,6 +7,7 @@
 $HealthChecksEnabled = $true  #Set as $true or $false
 $MonitoringEnabled = $false  #Set as $true or $false
 $MonitoringIntervalInSeconds = 30
+$SendAnonymousUsageData = $true
 
 $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
 $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
@@ -28,7 +29,7 @@ $HubUser = ''
 $HubPassword = ''
 
 #Member
-$MemberServer = '.database.windows.net' 
+$MemberServer = '' 
 $MemberDatabase = '' 
 $MemberUser = ''
 $MemberPassword = ''
@@ -754,6 +755,38 @@ Catch
 }    
 }
 
+function SendAnonymousUsageData{
+    Try 
+    {           
+        #Despite computername and username will be used to calculate a hash string, this will keep you anonymous but allow us to identify multiple runs from the same user
+        $StringBuilderHash = New-Object System.Text.StringBuilder
+        [System.Security.Cryptography.HashAlgorithm]::Create("MD5").ComputeHash([System.Text.Encoding]::UTF8.GetBytes($env:computername+$env:username))|%{
+        [Void]$StringBuilderHash.Append($_.ToString("x2"))
+        }
+        
+        $body = New-Object PSObject `
+            | Add-Member -PassThru NoteProperty name 'Microsoft.ApplicationInsights.Event' `
+            | Add-Member -PassThru NoteProperty time $([System.dateTime]::UtcNow.ToString('o')) `
+            | Add-Member -PassThru NoteProperty iKey "c8aa884b-5a60-4bec-b49e-702d69657409" `
+            | Add-Member -PassThru NoteProperty tags (New-Object PSObject | Add-Member -PassThru NoteProperty 'ai.user.id' $StringBuilderHash.ToString()) `
+            | Add-Member -PassThru NoteProperty data (New-Object PSObject `
+                | Add-Member -PassThru NoteProperty baseType 'EventData' `
+                | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
+                    | Add-Member -PassThru NoteProperty ver 2 `
+                    | Add-Member -PassThru NoteProperty name '4.0.1' `
+                    | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
+                        | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
+                        | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
+                        | Add-Member -PassThru NoteProperty 'ExtendedValidationsEnabledForHub' $ExtendedValidationsEnabledForHub.ToString() `
+                        | Add-Member -PassThru NoteProperty 'ExtendedValidationsEnabledForMember' $ExtendedValidationsEnabledForMember.ToString() )));
+        
+        $body = $body | ConvertTo-JSON -depth 5; 
+        
+        Invoke-WebRequest -Uri 'https://dc.services.visualstudio.com/v2/track' -Method 'POST' -UseBasicParsing -body $body > $null
+    } 
+    Catch { Write-Host $_ }
+}
+
 function ValidateDSSMember(){
     Try
     {
@@ -1233,9 +1266,11 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.0 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.0.1 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
+
+if($SendAnonymousUsageData){ SendAnonymousUsageData }
 
 #Hub
 $Server = $HubServer
