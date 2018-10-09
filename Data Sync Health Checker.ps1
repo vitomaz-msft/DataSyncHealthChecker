@@ -773,7 +773,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '4.0.1' `
+                    | Add-Member -PassThru NoteProperty name '4.1' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
@@ -897,7 +897,7 @@ function ValidateDSSMember(){
         $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $Server, $Database, $MbrUser, $MbrPassword)
         
         Write-Host
-        Write-Host Connecting to Member $Server"/"$Database
+        Write-Host Connecting to Hub/Member $Server"/"$Database
         Try
         {
             $MemberConnection.Open()
@@ -910,6 +910,23 @@ function ValidateDSSMember(){
 
         $MemberCommand = New-Object System.Data.SQLClient.SQLCommand
         $MemberCommand.Connection = $MemberConnection
+
+        Try
+        {
+            Write-Host
+            Write-Host Database version and configuration: 
+            $MemberCommand.CommandText = "SELECT compatibility_level, collation_name, snapshot_isolation_state_desc, @@VERSION AS [Version] FROM sys.databases WHERE name = DB_NAME();"
+            $MemberResult = $MemberCommand.ExecuteReader()
+            $MemberVersion = new-object “System.Data.DataTable”
+            $MemberVersion.Load($MemberResult)                         
+            $MemberVersion.Rows | Format-Table -Wrap -AutoSize
+            Write-Host
+        }
+        Catch
+        {
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            #Break
+        }
         
         Write-Host
         GetUIHistory        
@@ -922,7 +939,7 @@ function ValidateDSSMember(){
         DetectComputedColumns
         DetectProvisioningIssues
                     
-        Write-Host Getting scopes in this member database...
+        Write-Host Getting scopes in this Hub/Member database...
         
         Try
         {
@@ -931,7 +948,7 @@ function ValidateDSSMember(){
             $MemberScopes = new-object “System.Data.DataTable”
             $MemberScopes.Load($MemberResult)
              
-            Write-Host $MemberScopes.Rows.Count scopes found in member
+            Write-Host $MemberScopes.Rows.Count scopes found in Hub/Member
             $MemberScopes.Rows | Select sync_scope_name, scope_config_id, scope_status, scope_local_id, Version | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize
             Write-Host
             
@@ -1266,7 +1283,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.0.1 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.1 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
