@@ -68,19 +68,6 @@ function ValidateTablesVSLocalSchema([Array] $userTables){
         $datatable = new-object “System.Data.DataTable”
         $datatable.Load($result)
 
-        #$syncGroupSchemaColumns = $global:sgSchemaXml | Where-Object {$_.QuotedTableName -eq $userTable} | Select -ExpandProperty ColumnsToSync
-        #
-        #foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
-        #{
-        #        $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
-        #        if(!$scopeCol)
-        #        {
-        #            $msg= "WARNING: "+ $userTable+ ".["+$syncGroupSchemaColumn.Name+"] is missing in this database but exist in sync group schema, maybe preventing re-provisioning!"
-        #            Write-Host $msg -foreground Red
-        #            [void]$errorSummary.AppendLine($msg)                    
-        #        }                
-        #}
-
         foreach ($userColumn in $datatable)
         {
                 $sbCol = New-Object -TypeName "System.Text.StringBuilder"
@@ -108,13 +95,12 @@ function ValidateTablesVSLocalSchema([Array] $userTables){
                 if($schemaColumn.type -ne $userColumn.Datatype)
                 { 
                     [void]$sbCol.Append('  Type(' + $schemaColumn.type +'):NOK ')
-                    $msg="WARNING: " + $userTable + ".["+$userColumn.ColumnName+"] has a different datatype as the one defined in the sync scope! ("+$schemaColumn.type+" VS "+$userColumn.Datatype+")"
+                    $msg="WARNING: " + $userTable + ".["+$userColumn.ColumnName+"] has a different datatype! (table:"+$userColumn.Datatype+" VS scope:"+$schemaColumn.type+")"
                     Write-Host $msg -foreground "Red"
                     [void]$errorSummary.AppendLine($msg)                    
                 } 
                 else
                 { 
-                    #Write-Host $userTable ".["$userColumn.ColumnName"] has the same datatype as the one defined in the sync scope! ("$schemaColumn.type")" -foreground "Green" 
                     [void]$sbCol.Append('  Type(' + $schemaColumn.type +'):OK ')
                 }
                 
@@ -127,13 +113,12 @@ function ValidateTablesVSLocalSchema([Array] $userTables){
                 if($schemaColumn.size -ne $colMaxLen)
                 {
                     [void]$sbCol.Append('  Size(' + $schemaColumn.size +'):NOK ') 
-                    $msg= "WARNING: "+ $userTable+ ".["+$userColumn.ColumnName+"] has a different data size as the one defined in the sync scope!("+$schemaColumn.size+" VS "+$colMaxLen+")"
+                    $msg= "WARNING: "+ $userTable+ ".["+$userColumn.ColumnName+"] has a different data size!(table:"+$colMaxLen+" VS scope:"+$schemaColumn.size+")"
                     Write-Host $msg -foreground "Red"
                     [void]$errorSummary.AppendLine($msg)
                 }
                 else
                 { 
-                    #Write-Host $userTable ".["$userColumn.ColumnName"] has the same data size as the one defined in the sync scope! ("$schemaColumn.size")" -foreground "Green" 
                     [void]$sbCol.Append('  Size(' + $schemaColumn.size +'):OK ')
                 }
                                 
@@ -142,7 +127,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables){
                     if($schemaColumn.null -ne $userColumn.IsNullable)
                     { 
                         [void]$sbCol.Append('  Nullable(' + $schemaColumn.null +'):NOK ')
-                        $msg= "WARNING: " +$userTable +".["+$userColumn.ColumnName+"] has a different IsNullable as the one defined in the sync scope! ("+$schemaColumn.null+" VS "+$userColumn.IsNullable+")"
+                        $msg= "WARNING: " +$userTable +".["+$userColumn.ColumnName+"] has a different IsNullable! (table:"+$userColumn.IsNullable+" VS scope:"+$schemaColumn.null+")"
                         Write-Host $msg -foreground "Red"
                         [void]$errorSummary.AppendLine($msg) 
                     } 
@@ -206,7 +191,7 @@ function ValidateTablesVSSyncDbSchema(){
                 {
                     if($syncGroupSchemaColumn.DataType -ne $scopeCol.Datatype)
                     { 
-                        $msg="WARNING: " + $syncGroupSchemaTable + ".["+$syncGroupSchemaColumn.Name+"] has a different datatype as the one defined in the sync group schema! ("+$syncGroupSchemaColumn.DataType+" VS "+$scopeCol.Datatype+")"
+                        $msg="WARNING: " + $syncGroupSchemaTable + ".["+$syncGroupSchemaColumn.Name+"] has a different datatype! ("+$syncGroupSchemaColumn.DataType+" VS "+$scopeCol.Datatype+")"
                         Write-Host $msg -foreground "Red"
                         [void]$errorSummary.AppendLine($msg)                    
                     }
@@ -279,20 +264,13 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
     }     
 }
 
-function ValidateTrackingTables([Array] $tables){
-    if($tables.Count -gt 0)
+function ValidateTrackingTable($table){  
+  
+    if(![string]::IsNullOrEmpty($table))
     {
-        $allTrackingTableList.AddRange($tables)
+        [void]$allTrackingTableList.Add($table)
     }
     
-    foreach ($table in $tables) 
-    {
-        ValidateTrackingTable($table)
-    } 
-}
-
-function ValidateTrackingTable([String] $table){
-    #Write-Host "Validating Tracking Table : " $table
     $query = "SELECT COUNT(*) AS C FROM INFORMATION_SCHEMA.TABLES WHERE '['+TABLE_SCHEMA+'].['+ TABLE_NAME + ']' = '" + $table + "'"
 
     $MemberCommand.CommandText = $query
@@ -306,27 +284,19 @@ function ValidateTrackingTable([String] $table){
         Write-Host "WARNING: Tracking Table " $table "IS MISSING!" -foreground "Red" }    
 }
 
-function ValidateTriggers([Array] $triggers){ 
-    if($triggers.Count -gt 0)
-    {    
-        $allTriggersList.AddRange($triggers)
-    }
+function ValidateTrigger([String] $trigger){
     
-    foreach ($trigger in $triggers) 
-    {
-        ValidateTrigger($trigger)
-    } 
-}
-
-function ValidateTrigger([String] $triggerName){
-    #Write-Host "Validating Trigger : " $triggerName
+    if(![string]::IsNullOrEmpty($trigger))
+    {    
+        [void]$allTriggersList.Add($trigger)
+    }
 
     $query = "
     SELECT Count(*) as C
     FROM sys.triggers tr 
     INNER JOIN sys.tables t ON tr.parent_id = t.object_id 
     INNER JOIN sys.schemas s ON t.schema_id = s.schema_id 
-    WHERE '['+s.name+'].['+ tr.name+']' = '" + $triggerName + "'"
+    WHERE '['+s.name+'].['+ tr.name+']' = '" + $trigger + "'"
 
     $MemberCommand.CommandText = $query
     $result = $MemberCommand.ExecuteReader()
@@ -334,25 +304,17 @@ function ValidateTrigger([String] $triggerName){
     $table.Load($result)
     $count = $table | select C -ExpandProperty C
     if($count -eq 1){
-        Write-Host "Trigger " $triggerName "Exists" -foreground "Green" }
+        Write-Host "Trigger " $trigger "Exists" -foreground "Green" }
     if($count -eq 0){
-        Write-Host "WARNING: Trigger " $triggerName "IS MISSING!" -foreground "Red" }
-}
-
-function ValidateSPs([Array] $SPs){
-    if($SPs.Count -gt 0)
-    { 
-        $allSPsList.AddRange($SPs)
-    }
-
-    foreach ($SP in $SPs) 
-    {
-        ValidateSP($SP)
-    } 
+        Write-Host "WARNING: Trigger " $trigger "IS MISSING!" -foreground "Red" }
 }
 
 function ValidateSP([String] $SP){
-    #Write-Host "Validating Procedure : " $SP
+    
+    if(![string]::IsNullOrEmpty($SP))
+    { 
+        [void]$allSPsList.Add($SP)
+    }
     
     $query = "
     SELECT COUNT(*) AS C  
@@ -366,9 +328,106 @@ function ValidateSP([String] $SP){
     $table.Load($result)
     $count = $table | select C -ExpandProperty C
     if($count -eq 1){
-        Write-Host "Procedure " $SP "Exists" -foreground "Green" }
+        Write-Host "Procedure" $SP "Exists" -foreground "Green" }
     if($count -eq 0){
-        Write-Host "WARNING: Procedure " $SP "IS MISSING!" -foreground "Red" }
+        Write-Host "WARNING: Procedure" $SP "IS MISSING!" -foreground "Red" }
+}
+
+function ValidateBulkType([String] $bulkType, $columns){
+    
+    if(![string]::IsNullOrEmpty($bulkType))
+    { 
+        [void]$allBulkTypeList.Add($bulkType)
+    }
+    
+    $query = "select tt.name 'Type',
+    c.name 'ColumnName',
+    t.Name 'Datatype',
+    c.max_length 'MaxLength',
+    c.is_nullable 'IsNullable', 
+    c.column_id 'ColumnId'
+    from sys.table_types tt
+    inner join sys.columns c on c.object_id = tt.type_table_object_id
+    inner join sys.types t ON c.user_type_id = t.user_type_id
+    where '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' ='" + $bulkType + "'" 
+    
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $table = new-object “System.Data.DataTable”
+    $table.Load($result)
+    $count = $table.Rows.Count
+    if($count -gt 0){
+        Write-Host "Type" $bulkType "Exists" -foreground "Green"
+        foreach($column in $columns)
+        {
+            $sbCol = New-Object -TypeName "System.Text.StringBuilder"
+                        
+            $typeColumn = $table.Rows | Where-Object ColumnName -eq $column.name
+            
+            if(!$typeColumn)
+            {
+                $msg= "WARNING: "+ $bulkType + ".["+$column.name+"] does not exit!"
+                Write-Host $msg -foreground "Red"
+                [void]$errorSummary.AppendLine($msg)
+                continue
+            }
+
+            [void]$sbCol.Append($bulkType + ".[" + $column.name + "] " + $column.param)
+
+
+            if($column.type -ne $typeColumn.Datatype)
+            { 
+                [void]$sbCol.Append('  Type(' + $column.type +'):NOK ')
+                $msg="WARNING: " + $bulkType + ".["+$column.name+"] has a different datatype! (type:"+$typeColumn.Datatype+" VS scope:"+$column.type+")"
+                Write-Host $msg -foreground "Red"
+                [void]$errorSummary.AppendLine($msg)                    
+            } 
+            else
+            { 
+                [void]$sbCol.Append('  Type(' + $column.type +'):OK ')
+            }
+            
+            $colMaxLen=$typeColumn.MaxLength
+
+            if($column.type -eq 'nvarchar' -or $column.type -eq 'nchar'){$colMaxLen=$colMaxLen/2}
+            
+            if($typeColumn.MaxLength -eq -1 -and ($column.type -eq 'nvarchar' -or $column.type -eq 'nchar' -or $column.type -eq 'varbinary' -or $column.type -eq 'varchar' -or $column.type -eq 'nvarchar')){$colMaxLen='max'}
+
+            if($column.size -ne $colMaxLen)
+            {
+                [void]$sbCol.Append('  Size(' + $column.size +'):NOK ') 
+                $msg= "WARNING: "+ $bulkType+ ".["+$column.name+"] has a different data size!(type:"+$colMaxLen+" VS scope:"+$column.size+")"
+                Write-Host $msg -foreground "Red"
+                [void]$errorSummary.AppendLine($msg)
+            }
+            else
+            { 
+                [void]$sbCol.Append('  Size(' + $column.size +'):OK ')
+            }
+                            
+            if($column.null)
+            {
+                if($column.null -ne $typeColumn.IsNullable)
+                { 
+                    [void]$sbCol.Append('  Nullable(' + $column.null +'):NOK ')
+                    $msg= "WARNING: " +$bulkType +".["+$column.name+"] has a different IsNullable! (type:"+$typeColumn.IsNullable+" VS scope:"+$column.null+")"
+                    Write-Host $msg -foreground "Red"
+                    [void]$errorSummary.AppendLine($msg) 
+                } 
+                else
+                { 
+                    [void]$sbCol.Append('  Nullable(' + $column.null +'):OK ')
+                }                    
+            }
+            
+            $sbColString = $sbCol.ToString()
+            if($sbColString -match 'NOK'){ Write-Host $sbColString -ForegroundColor Red } else { Write-Host $sbColString -ForegroundColor Green }
+
+
+        }
+    }
+    if($count -eq 0){
+        Write-Host "WARNING: Type" $bulkType "IS MISSING!" -foreground "Red" }
 }
 
 function DetectTrackingTableLeftovers(){
@@ -773,7 +832,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '4.1' `
+                    | Add-Member -PassThru NoteProperty name '4.2' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
@@ -796,6 +855,7 @@ function ValidateDSSMember(){
         $allTrackingTableList = New-Object System.Collections.ArrayList
         $allTriggersList = New-Object System.Collections.ArrayList
         $allSPsList = New-Object System.Collections.ArrayList
+        $allBulkTypeList = New-Object System.Collections.ArrayList        
 
         $SyncDbConnection = New-Object System.Data.SqlClient.SQLConnection
         $SyncDbConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $SyncDbServer, $SyncDbDatabase, $SyncDbUser, $SyncDbPassword)
@@ -1012,25 +1072,28 @@ function ValidateDSSMember(){
                 ValidateTablesVSLocalSchema ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)
         
                 #Tracking Tables
-                ValidateTrackingTables($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty TrackingTable)
+                ValidateTrackingTable($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty TrackingTable)
                 
                 ##Triggers   
-                ValidateTriggers($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty InsTrig)
-                ValidateTriggers($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty UpdTrig)
-                ValidateTriggers($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty DelTrig)
+                ValidateTrigger($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty InsTrig)
+                ValidateTrigger($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty UpdTrig)
+                ValidateTrigger($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty DelTrig)
                 
                 ## Procedures
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelChngProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelChngProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelRowProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelRowProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsMetaProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsMetaProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdMetaProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdMetaProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelMetaProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelMetaProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkInsProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkInsProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkUpdProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkUpdProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkDelProc){ ValidateSPs($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkDelProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelChngProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelChngProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelRowProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelRowProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsMetaProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsMetaProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdMetaProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdMetaProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelMetaProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelMetaProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkInsProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkInsProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkUpdProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkUpdProc) }
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkDelProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkDelProc) }
+
+                ## BulkType
+                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkTableType){ ValidateBulkType $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkTableType $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.Col }
                 
                 #Constraints
                 ValidateFKDependencies ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)        
@@ -1283,7 +1346,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.1 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.2 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
