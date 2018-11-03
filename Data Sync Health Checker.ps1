@@ -280,8 +280,12 @@ function ValidateTrackingTable($table){
     $count = $datatable | select C -ExpandProperty C
     if($count -eq 1){
         Write-Host "Tracking Table " $table "Exists" -foreground "Green" }
-    if($count -eq 0){
-        Write-Host "WARNING: Tracking Table " $table "IS MISSING!" -foreground "Red" }    
+    if($count -eq 0)
+    {
+        $msg = "WARNING: Tracking Table " + $table + " IS MISSING!"
+        Write-Host $msg -foreground Red
+        [void]$errorSummary.AppendLine($msg)
+    }
 }
 
 function ValidateTrigger([String] $trigger){
@@ -292,7 +296,7 @@ function ValidateTrigger([String] $trigger){
     }
 
     $query = "
-    SELECT Count(*) as C
+    SELECT tr.name, tr.is_disabled AS 'Disabled'
     FROM sys.triggers tr 
     INNER JOIN sys.tables t ON tr.parent_id = t.object_id 
     INNER JOIN sys.schemas s ON t.schema_id = s.schema_id 
@@ -302,11 +306,25 @@ function ValidateTrigger([String] $trigger){
     $result = $MemberCommand.ExecuteReader()
     $table = new-object “System.Data.DataTable”
     $table.Load($result)
-    $count = $table | select C -ExpandProperty C
+    $count = $table.Rows.Count
     if($count -eq 1){
-        Write-Host "Trigger " $trigger "Exists" -foreground "Green" }
-    if($count -eq 0){
-        Write-Host "WARNING: Trigger " $trigger "IS MISSING!" -foreground "Red" }
+        if($table.Rows[0].Disabled -eq 1)
+        {
+            $msg = "WARNING: Trigger " + $trigger + " exists but is DISABLED!" 
+            Write-Host $msg -foreground Red
+            [void]$errorSummary.AppendLine($msg)
+        }
+        else
+        {
+            Write-Host "Trigger " $trigger "Exists and is enabled." -foreground "Green" 
+        }
+    }
+    if($count -eq 0)
+    {
+        $msg = "WARNING: Trigger " + $trigger + " IS MISSING!" 
+        Write-Host $msg -foreground Red
+        [void]$errorSummary.AppendLine($msg)
+    }
 }
 
 function ValidateSP([String] $SP){
@@ -329,8 +347,12 @@ function ValidateSP([String] $SP){
     $count = $table | select C -ExpandProperty C
     if($count -eq 1){
         Write-Host "Procedure" $SP "Exists" -foreground "Green" }
-    if($count -eq 0){
-        Write-Host "WARNING: Procedure" $SP "IS MISSING!" -foreground "Red" }
+    if($count -eq 0)
+    {
+        $msg = "WARNING: Procedure " + $SP + " IS MISSING!"
+        Write-Host $msg -foreground Red
+        [void]$errorSummary.AppendLine($msg)
+    }
 }
 
 function ValidateBulkType([String] $bulkType, $columns){
@@ -426,8 +448,12 @@ function ValidateBulkType([String] $bulkType, $columns){
 
         }
     }
-    if($count -eq 0){
-        Write-Host "WARNING: Type" $bulkType "IS MISSING!" -foreground "Red" }
+    if($count -eq 0)
+    {
+        $msg = "WARNING: Type " + $bulkType + " IS MISSING!"
+        Write-Host $msg -foreground Red
+        [void]$errorSummary.AppendLine($msg)
+    }
 }
 
 function DetectTrackingTableLeftovers(){
@@ -832,7 +858,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '4.2' `
+                    | Add-Member -PassThru NoteProperty name '4.3' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
@@ -1346,7 +1372,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.2 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.3 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
