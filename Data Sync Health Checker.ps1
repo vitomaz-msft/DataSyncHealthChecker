@@ -279,7 +279,7 @@ function ValidateTrackingTable($table){
     $datatable.Load($result)
     $count = $datatable | select C -ExpandProperty C
     if($count -eq 1){
-        Write-Host "Tracking Table " $table "Exists" -foreground "Green" }
+        Write-Host "Tracking Table " $table "exists" -foreground "Green" }
     if($count -eq 0)
     {
         $msg = "WARNING: Tracking Table " + $table + " IS MISSING!"
@@ -316,7 +316,7 @@ function ValidateTrigger([String] $trigger){
         }
         else
         {
-            Write-Host "Trigger " $trigger "Exists and is enabled." -foreground "Green" 
+            Write-Host "Trigger " $trigger "exists and is enabled." -foreground "Green" 
         }
     }
     if($count -eq 0)
@@ -346,7 +346,7 @@ function ValidateSP([String] $SP){
     $table.Load($result)
     $count = $table | select C -ExpandProperty C
     if($count -eq 1){
-        Write-Host "Procedure" $SP "Exists" -foreground "Green" }
+        Write-Host "Procedure" $SP "exists" -foreground "Green" }
     if($count -eq 0)
     {
         $msg = "WARNING: Procedure " + $SP + " IS MISSING!"
@@ -379,7 +379,7 @@ function ValidateBulkType([String] $bulkType, $columns){
     $table.Load($result)
     $count = $table.Rows.Count
     if($count -gt 0){
-        Write-Host "Type" $bulkType "Exists" -foreground "Green"
+        Write-Host "Type" $bulkType "exists" -foreground "Green"
         foreach($column in $columns)
         {
             $sbCol = New-Object -TypeName "System.Text.StringBuilder"
@@ -474,7 +474,6 @@ function DetectTrackingTableLeftovers(){
         {
             Write-Host "WARNING: Tracking Table" $leftover.FullTableName "should be a leftover." -foreground "yellow"             
             $deleteStatement = "Drop Table " + $leftover.FullTableName + ";"
-            #Write-Host $deleteStatement -ForegroundColor yellow
             [void]$runnableScript.AppendLine($deleteStatement)
             [void]$runnableScript.AppendLine("GO")
 
@@ -489,7 +488,6 @@ function DetectTrackingTableLeftovers(){
             {
                 $deleteStatement = "DELETE FROM [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = 0 and [object_id] = " + $provision_marker_leftover2.object_id + " --" + $leftover.TABLE_NAME
                 Write-Host "WARNING: [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = 0 and [object_id] = " $provision_marker_leftover2.object_id "("  $leftover.TABLE_NAME ") should be a leftover." -foreground "yellow"
-                #Write-Host $deleteStatement -ForegroundColor yellow
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO")
             }
@@ -520,7 +518,6 @@ function DetectTriggerLeftovers(){
         {
             Write-Host "WARNING: Trigger" $leftover "should be a leftover." -foreground "yellow"             
             $deleteStatement = "Drop Trigger " + $leftover + ";"
-            #Write-Host $deleteStatement -ForegroundColor yellow
             [void]$runnableScript.AppendLine($deleteStatement)
             [void]$runnableScript.AppendLine("GO")
         }
@@ -549,7 +546,35 @@ function DetectProcedureLeftovers(){
         {
             Write-Host "WARNING: Procedure" $leftover "should be a leftover." -foreground "yellow"             
             $deleteStatement = "Drop Procedure " + $leftover + ";"
-            #Write-Host $deleteStatement -ForegroundColor yellow
+            [void]$runnableScript.AppendLine($deleteStatement)
+            [void]$runnableScript.AppendLine("GO") 
+        }
+    } 
+}
+
+function DetectBulkTypeLeftovers(){
+    $allBulkTypeString = "'$($allBulkTypeList -join "','")'"
+    $query = "select distinct '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' 'Type'
+    from sys.table_types tt
+    inner join sys.columns c on c.object_id = tt.type_table_object_id
+    inner join sys.types t ON c.user_type_id = t.user_type_id
+    where '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' NOT IN (" + $allBulkTypeString + ")"
+    
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+
+    if(($datatable.Type).Count -eq 0)
+    { 
+        Write-Host "There are no Bulk Type leftovers" -foreground "Green"  
+    }
+    else 
+    {
+        foreach ($leftover in $datatable.Type) 
+        {
+            Write-Host "WARNING: Bulk Type" $leftover "should be a leftover." -foreground "yellow"             
+            $deleteStatement = "Drop Type " + $leftover + ";"
             [void]$runnableScript.AppendLine($deleteStatement)
             [void]$runnableScript.AppendLine("GO") 
         }
@@ -858,7 +883,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '4.3' `
+                    | Add-Member -PassThru NoteProperty name '4.4' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
@@ -1011,7 +1036,6 @@ function ValidateDSSMember(){
         Catch
         {
             Write-Host $_.Exception.Message -ForegroundColor Red
-            #Break
         }
         
         Write-Host
@@ -1050,12 +1074,10 @@ function ValidateDSSMember(){
                 Write-Host "WARNING:" [DataSync].[scope_info_dss].[scope_local_id] $scope.scope_local_id "should be a leftover." -foreground "yellow"  
                 
                 $deleteStatement = "DELETE FROM [DataSync].[scope_config_dss] WHERE [config_id] = '"+ $scope.scope_config_id+ "'"
-                #Write-Host $deleteStatement -ForegroundColor yellow
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO")
                     
                 $deleteStatement = "DELETE FROM [DataSync].[scope_info_dss] WHERE [scope_local_id] = '"+ $scope.scope_local_id + "'" 
-                #Write-Host $deleteStatement -ForegroundColor yellow
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO")
 
@@ -1069,7 +1091,6 @@ function ValidateDSSMember(){
                 {
                     $deleteStatement = "DELETE FROM [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = "+$scope.scope_local_id+" and [object_id] = " + $provision_marker_leftover.object_id + " --" + $provision_marker_leftover.TableName
                     Write-Host "WARNING: [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = " $scope.scope_local_id  " and [object_id] = " $provision_marker_leftover.object_id " (" $provision_marker_leftover.TableName ") should be a leftover." -foreground "yellow"
-                    #Write-Host $deleteStatement -ForegroundColor yellow
                     [void]$runnableScript.AppendLine($deleteStatement)
                     [void]$runnableScript.AppendLine("GO")
                 }
@@ -1096,40 +1117,42 @@ function ValidateDSSMember(){
                 #Tables
                 ValidateTablesVSSyncDbSchema
                 ValidateTablesVSLocalSchema ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)
-        
-                #Tracking Tables
-                ValidateTrackingTable($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty TrackingTable)
-                
-                ##Triggers   
-                ValidateTrigger($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty InsTrig)
-                ValidateTrigger($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty UpdTrig)
-                ValidateTrigger($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty DelTrig)
-                
-                ## Procedures
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelChngProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelChngProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelRowProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.SelRowProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsMetaProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.InsMetaProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdMetaProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.UpdMetaProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelMetaProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.DelMetaProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkInsProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkInsProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkUpdProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkUpdProc) }
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkDelProc){ ValidateSP($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkDelProc) }
 
-                ## BulkType
-                if($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkTableType){ ValidateBulkType $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.BulkTableType $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter.Col }
-                
+                foreach($table in $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter)
+                {        
+                    #Tracking Tables
+                    ValidateTrackingTable($table.TrackingTable)
+                    
+                    ##Triggers   
+                    ValidateTrigger($table.InsTrig)
+                    ValidateTrigger($table.UpdTrig)
+                    ValidateTrigger($table.DelTrig)
+                    
+                    ## Procedures
+                    if($table.SelChngProc){ ValidateSP($table.SelChngProc) }
+                    if($table.SelRowProc){ ValidateSP($table.SelRowProc) }
+                    if($table.InsProc){ ValidateSP($table.InsProc) }
+                    if($table.UpdProc){ ValidateSP($table.UpdProc) }
+                    if($table.DelProc){ ValidateSP($table.DelProc) }
+                    if($table.InsMetaProc){ ValidateSP($table.InsMetaProc) }
+                    if($table.UpdMetaProc){ ValidateSP($table.UpdMetaProc) }
+                    if($table.DelMetaProc){ ValidateSP($table.DelMetaProc) }
+                    if($table.BulkInsProc){ ValidateSP($table.BulkInsProc) }
+                    if($table.BulkUpdProc){ ValidateSP($table.BulkUpdProc) }
+                    if($table.BulkDelProc){ ValidateSP($table.BulkDelProc) }
+
+                    ## BulkType
+                    if($table.BulkTableType){ ValidateBulkType $table.BulkTableType $table.Col }
+                }
+
                 #Constraints
                 ValidateFKDependencies ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)        
                 }
-        }
+            }
         }
         Catch
         {
             Write-Host $_.Exception.Message -ForegroundColor Red
-            #Break
         } 
         
         ### Provisioning Issues ###
@@ -1174,6 +1197,7 @@ function ValidateDSSMember(){
         DetectTrackingTableLeftovers
         DetectTriggerLeftovers
         DetectProcedureLeftovers
+        DetectBulkTypeLeftovers
         
         ### Validations ###
         ValidateProvisionMarker
@@ -1372,7 +1396,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.3 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.4 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
