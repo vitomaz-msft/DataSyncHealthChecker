@@ -883,7 +883,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '4.4' `
+                    | Add-Member -PassThru NoteProperty name '4.5' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
@@ -897,6 +897,233 @@ function SendAnonymousUsageData{
     Catch { Write-Host $_ }
 }
 
+function ValidateSyncDB{
+    Try 
+    {
+        $SyncDbConnection = New-Object System.Data.SqlClient.SQLConnection
+        $SyncDbConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $SyncDbServer, $SyncDbDatabase, $SyncDbUser, $SyncDbPassword)
+        
+        Write-Host Connecting to SyncDB $SyncDbServer"/"$SyncDbDatabase
+        Try
+        {
+            $SyncDbConnection.Open()
+        }
+        Catch
+        {
+            Write-Host $_.Exception.Message
+            Break
+        }
+        
+        $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
+        $SyncDbCommand.Connection = $SyncDbConnection
+        
+        $query = "select [name] from sys.schemas where name in ('dss','TaskHosting')" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        if(($datatable.Rows | Where-Object {$_.name -eq "dss"} | Measure).Count -gt 0) { Write-Host "dss schema exists" -foreground White }
+        else 
+        {
+            $msg = "WARNING: dss schema IS MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        if(($datatable.Rows | Where-Object {$_.name -eq "TaskHosting"} | Measure).Count -gt 0) { Write-Host "TaskHosting schema exists" -foreground White }
+        else 
+        {
+            $msg = "WARNING: TaskHosting schema IS MISSING!"
+            Write-Host $msg -foreground Red
+        }
+
+        $query = "select schema_name(schema_id) as [name], count(*) as 'Count' from sys.tables
+where schema_name(schema_id) = 'dss' or schema_name(schema_id) = 'TaskHosting' 
+group by schema_name(schema_id)" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
+        if($spCount.Count -gt 0) { Write-Host "dss" $spCount.Count "tables found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: dss tables are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
+        if($spCount.Count -gt 0) { Write-Host "TaskHosting" $spCount.Count "tables found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: TaskHosting tables are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+
+        $query = "select schema_name(schema_id) as [name], count(*) as 'Count' from sys.procedures
+where schema_name(schema_id) = 'dss' or schema_name(schema_id) = 'TaskHosting' 
+group by schema_name(schema_id)" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
+        if($spCount.Count -gt 0) { Write-Host "dss" $spCount.Count "stored procedures found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: dss stored procedures are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
+        if($spCount.Count -gt 0) { Write-Host "TaskHosting" $spCount.Count "stored procedures found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: TaskHosting stored procedures are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+
+        $query = "select schema_name(schema_id) as [name], count(*) as 'Count'
+from sys.types where is_user_defined = 1 and schema_name(schema_id) = 'dss' or schema_name(schema_id) = 'TaskHosting' 
+group by schema_name(schema_id)" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
+        if($spCount.Count -gt 0) { Write-Host "dss" $spCount.Count "types found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: dss types are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
+        if($spCount.Count -gt 0) { Write-Host "TaskHosting" $spCount.Count "types found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: TaskHosting types are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+
+        $query = "select schema_name(schema_id) as [name], count(*) as 'Count'
+from sys.objects where type in ( 'FN', 'IF', 'TF' )
+and schema_name(schema_id) = 'dss' or schema_name(schema_id) = 'TaskHosting'
+group by schema_name(schema_id)" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
+        if($spCount.Count -gt 0) { Write-Host "dss" $spCount.Count "functions found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: dss functions are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
+        if($spCount.Count -gt 0) { Write-Host "TaskHosting" $spCount.Count "functions found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: TaskHosting functions are MISSING!"
+            Write-Host $msg -foreground Red
+        }
+
+        $query = "select name from sys.sysusers where name in ('##MS_SyncAccount##','DataSync_reader','DataSync_executor','DataSync_admin')" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        if(($datatable.Rows | Where-Object {$_.name -eq "##MS_SyncAccount##"} | Measure).Count -gt 0) { Write-Host "##MS_SyncAccount## exists" -foreground White }
+        else 
+        {
+            $msg = "WARNING: ##MS_SyncAccount## IS MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        if(($datatable.Rows | Where-Object {$_.name -eq "DataSync_reader"} | Measure).Count -gt 0) { Write-Host "DataSync_reader exists" -foreground White }
+        else 
+        {
+            $msg = "WARNING: DataSync_reader IS MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        if(($datatable.Rows | Where-Object {$_.name -eq "DataSync_executor"} | Measure).Count -gt 0) { Write-Host "DataSync_executor exists" -foreground White }
+        else 
+        {
+            $msg = "WARNING: DataSync_executor IS MISSING!"
+            Write-Host $msg -foreground Red
+        }
+        
+        if(($datatable.Rows | Where-Object {$_.name -eq "DataSync_admin"} | Measure).Count -gt 0) { Write-Host "DataSync_admin exists" -foreground White }
+        else 
+        {
+            $msg = "WARNING: DataSync_admin IS MISSING!"
+            Write-Host $msg -foreground Red
+        }
+
+        $query = "select count(*) as 'Count' from sys.symmetric_keys where name like 'DataSyncEncryptionKey%'" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        $keyCount = $datatable.Rows
+        if($keyCount.Count -gt 0) { Write-Host $keyCount.Count "DataSyncEncryptionKey found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: no DataSyncEncryptionKeys were found!"
+            Write-Host $msg -foreground Red
+        }
+
+        $query = "select count(*) as 'Count' from sys.certificates where name like 'DataSyncEncryptionCertificate%'" 
+        $SyncDbCommand.CommandText = $query
+        $result = $SyncDbCommand.ExecuteReader()
+        $datatable = new-object “System.Data.DataTable”
+        $datatable.Load($result)
+
+        $keyCount = $datatable.Rows
+        if($keyCount.Count -gt 0) { Write-Host $keyCount.Count "DataSyncEncryptionCertificate found" -foreground White }
+        else 
+        {
+            $msg = "WARNING: no DataSyncEncryptionCertificates were found!"
+            Write-Host $msg -foreground Red
+        }
+
+        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[syncgroup]"
+        $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
+        $SyncDbMembersDataTableA = new-object “System.Data.DataTable”
+        $SyncDbMembersDataTableA.Load($SyncDbMembersResult)
+        Write-Host $SyncDbMembersDataTableA.C sync groups    
+
+        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[syncgroupmember]"
+        $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
+        $SyncDbMembersDataTableB = new-object “System.Data.DataTable”
+        $SyncDbMembersDataTableB.Load($SyncDbMembersResult)
+        Write-Host $SyncDbMembersDataTableB.C sync group members     
+        
+        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[agent]"
+        $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
+        $SyncDbMembersDataTableC = new-object “System.Data.DataTable”
+        $SyncDbMembersDataTableC.Load($SyncDbMembersResult)        
+        Write-Host $SyncDbMembersDataTableC.C sync agents
+    } 
+    Catch { Write-Host $_ }
+    Finally
+    {        
+        if($SyncDbConnection){
+            Write-Host Closing connecting to SyncDb...
+            $SyncDbConnection.Close()
+        }        
+    }
+}
+
 function ValidateDSSMember(){
     Try
     {
@@ -906,7 +1133,7 @@ function ValidateDSSMember(){
         $allTrackingTableList = New-Object System.Collections.ArrayList
         $allTriggersList = New-Object System.Collections.ArrayList
         $allSPsList = New-Object System.Collections.ArrayList
-        $allBulkTypeList = New-Object System.Collections.ArrayList        
+        $allBulkTypeList = New-Object System.Collections.ArrayList
 
         $SyncDbConnection = New-Object System.Data.SqlClient.SQLConnection
         $SyncDbConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $SyncDbServer, $SyncDbDatabase, $SyncDbUser, $SyncDbPassword)
@@ -924,23 +1151,6 @@ function ValidateDSSMember(){
         
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
-
-        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[syncgroup]"
-        $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
-        $SyncDbMembersDataTableA = new-object “System.Data.DataTable”
-        $SyncDbMembersDataTableA.Load($SyncDbMembersResult)        
-
-        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[syncgroupmember]"
-        $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
-        $SyncDbMembersDataTableB = new-object “System.Data.DataTable”
-        $SyncDbMembersDataTableB.Load($SyncDbMembersResult)        
-        
-        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[agent]"
-        $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
-        $SyncDbMembersDataTableC = new-object “System.Data.DataTable”
-        $SyncDbMembersDataTableC.Load($SyncDbMembersResult)  
-        
-        Write-Host $SyncDbMembersDataTableA.C sync groups / $SyncDbMembersDataTableB.C sync group members / $SyncDbMembersDataTableC.C sync agents found in this sync metadata database
 
         Write-Host Getting scopes in SyncDB for this member database...
         
@@ -1396,11 +1606,20 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.4 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.5 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
 if($SendAnonymousUsageData){ SendAnonymousUsageData }
+
+#SyncDB
+if($SyncDbServer -ne '' -and $SyncDbDatabase -ne '')
+{
+    Write-Host
+    Write-Host ***************** Validating Sync Metadata Database ********************** -ForegroundColor Green
+    Write-Host 
+    ValidateSyncDB 
+}
 
 #Hub
 $Server = $HubServer
