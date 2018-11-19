@@ -24,7 +24,7 @@ $SyncDbPassword = ''
 
 #Hub
 $HubServer = '.database.windows.net' 
-$HubDatabase = '' 
+$HubDatabase = ''
 $HubUser = ''
 $HubPassword = ''
 
@@ -149,56 +149,86 @@ function ValidateTablesVSLocalSchema([Array] $userTables){
     }
 }
 
-function ValidateTablesVSSyncDbSchema(){
-    
-    $syncGroupSchemaTables = $global:sgSchemaXml | Select -ExpandProperty QuotedTableName
-       
-    foreach ($syncGroupSchemaTable in $syncGroupSchemaTables) 
+function ValidateTablesVSSyncDbSchema($SyncDbScopes){
+Try
+{
+    foreach($SyncDbScope in $SyncDbScopes)
     {
-        $syncGroupSchemaColumns = $global:sgSchemaXml | Where-Object {$_.QuotedTableName -eq $syncGroupSchemaTable} | Select -ExpandProperty ColumnsToSync
-    
-        $query = "SELECT 
-                     c.name 'ColumnName',
-                     t.Name 'Datatype',
-                     c.max_length 'MaxLength',
-                     c.is_nullable 'IsNullable'
-                     FROM sys.columns c
-                     INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-                     WHERE c.object_id = OBJECT_ID('" + $syncGroupSchemaTable + "')" 
-        $MemberCommand.CommandText = $query
-        $result = $MemberCommand.ExecuteReader()
-        $datatable = new-object “System.Data.DataTable”
-        $datatable.Load($result)
-
-        if($datatable.Rows.Count -eq 0)
-        {
-            $msg= "WARNING: "+ $syncGroupSchemaTable + " does not exist in the database but exist in the sync group schema."
-            Write-Host $msg -foreground Red
-            [void]$errorSummary.AppendLine($msg)
-        }
-        else
+        Write-Host 'Validating Table(s) VS SyncDB for' $SyncDbScope.SyncGroupName':' -foreground "White"
+        $ValidateTablesVSSyncDbSchemaIssuesFound = $false
+        $syncdbscopeobj = ([xml]$SyncDbScope.SchemaDescription).DssSyncScopeDescription.TableDescriptionCollection.DssTableDescription
+        $syncGroupSchemaTables = $syncdbscopeobj | Select -ExpandProperty QuotedTableName
+           
+        foreach ($syncGroupSchemaTable in $syncGroupSchemaTables) 
         {        
-            foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
+            $syncGroupSchemaColumns = $syncdbscopeobj | Where-Object {$_.QuotedTableName -eq $syncGroupSchemaTable} | Select -ExpandProperty ColumnsToSync
+        
+            $query = "SELECT 
+                         c.name 'ColumnName',
+                         t.Name 'Datatype',
+                         c.max_length 'MaxLength',
+                         c.is_nullable 'IsNullable'
+                         FROM sys.columns c
+                         INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+                         WHERE c.object_id = OBJECT_ID('" + $syncGroupSchemaTable + "')" 
+            $MemberCommand.CommandText = $query
+            $result = $MemberCommand.ExecuteReader()
+            $datatable = new-object “System.Data.DataTable”
+            $datatable.Load($result)
+
+            if($datatable.Rows.Count -eq 0)
             {
-                $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
-                if(!$scopeCol)
-                {
-                    $msg= "WARNING: "+ $syncGroupSchemaTable+ ".["+$syncGroupSchemaColumn.Name+"] is missing in this database but exist in sync group schema, maybe preventing provisioning/re-provisioning!"
-                    Write-Host $msg -foreground Red
-                    [void]$errorSummary.AppendLine($msg)                
-                }
-                else
-                {
-                    if($syncGroupSchemaColumn.DataType -ne $scopeCol.Datatype)
-                    { 
-                        $msg="WARNING: " + $syncGroupSchemaTable + ".["+$syncGroupSchemaColumn.Name+"] has a different datatype! ("+$syncGroupSchemaColumn.DataType+" VS "+$scopeCol.Datatype+")"
-                        Write-Host $msg -foreground "Red"
-                        [void]$errorSummary.AppendLine($msg)                    
-                    }
-                }               
+                $ValidateTablesVSSyncDbSchemaIssuesFound = $true
+                $msg= "WARNING: "+ $syncGroupSchemaTable + " does not exist in the database but exist in the sync group schema."
+                Write-Host $msg -foreground Red
+                [void]$errorSummary.AppendLine($msg)
             }
+            else
+            {        
+                foreach($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription)
+                {
+                    $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
+                    if(!$scopeCol)
+                    {
+                        $ValidateTablesVSSyncDbSchemaIssuesFound = $true
+                        $msg= "WARNING: "+ $syncGroupSchemaTable+ ".["+$syncGroupSchemaColumn.Name+"] is missing in this database but exist in sync group schema, maybe preventing provisioning/re-provisioning!"
+                        Write-Host $msg -foreground Red
+                        [void]$errorSummary.AppendLine($msg)                
+                    }
+                    else
+                    {
+                        if($syncGroupSchemaColumn.DataType -ne $scopeCol.Datatype)
+                        {
+                            $ValidateTablesVSSyncDbSchemaIssuesFound = $true 
+                            $msg="WARNING: " + $syncGroupSchemaTable + ".["+$syncGroupSchemaColumn.Name+"] has a different datatype! ("+$syncGroupSchemaColumn.DataType+" VS "+$scopeCol.Datatype+")"
+                            Write-Host $msg -foreground "Red"
+                            [void]$errorSummary.AppendLine($msg)                    
+                        }
+                        else
+                        {
+                            if($syncGroupSchemaColumn.DataSize -ne $scopeCol.MaxLength)
+                            {
+                                $ValidateTablesVSSyncDbSchemaIssuesFound = $true 
+                                $msg="WARNING: " + $syncGroupSchemaTable + ".["+$syncGroupSchemaColumn.Name+"] has a different data size! ("+$syncGroupSchemaColumn.DataSize+" VS "+$scopeCol.MaxLength+")"
+                                Write-Host $msg -foreground "Red"
+                                [void]$errorSummary.AppendLine($msg)                    
+                            }
+                        }
+                    }               
+                }
+            }        
+        }
+        if(!$ValidateTablesVSSyncDbSchemaIssuesFound)
+        {
+            Write-Host '- No issues detected for' $SyncDbScope.SyncGroupName -foreground "Green"
         }
     }
+}
+Catch
+{
+    Write-Host ValidateTablesVSSyncDbSchema exception:
+    Write-Host $_.Exception.Message -ForegroundColor Red    
+}
 }
 
 function ValidateTrackingRecords([String] $table, [Array] $tablePKList){
@@ -316,7 +346,7 @@ function ValidateTrigger([String] $trigger){
         }
         else
         {
-            Write-Host "Trigger " $trigger "exists and is enabled." -foreground "Green" 
+            Write-Host "Trigger" $trigger "exists and is enabled." -foreground "Green" 
         }
     }
     if($count -eq 0)
@@ -394,7 +424,7 @@ function ValidateBulkType([String] $bulkType, $columns){
                 continue
             }
 
-            [void]$sbCol.Append($bulkType + ".[" + $column.name + "] " + $column.param)
+            [void]$sbCol.Append("- [" + $column.name + "] " + $column.param)
 
 
             if($column.type -ne $typeColumn.Datatype)
@@ -457,6 +487,8 @@ function ValidateBulkType([String] $bulkType, $columns){
 }
 
 function DetectTrackingTableLeftovers(){
+Try
+{
     $allTrackingTableString = "'$($allTrackingTableList -join "','")'"
     $query = "SELECT '['+TABLE_SCHEMA+'].['+ TABLE_NAME + ']' as FullTableName, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME LIKE '%_dss_tracking' AND '['+TABLE_SCHEMA+'].['+ TABLE_NAME + ']' NOT IN (" + $allTrackingTableString + ")"
     $MemberCommand.CommandText = $query
@@ -492,10 +524,18 @@ function DetectTrackingTableLeftovers(){
                 [void]$runnableScript.AppendLine("GO")
             }
         }
-    }  
+    }
+}
+Catch
+{
+    Write-Host DetectTrackingTableLeftovers exception:
+    Write-Host $_.Exception.Message -ForegroundColor Red    
+} 
 }
 
 function DetectTriggerLeftovers(){
+Try
+{
     $allTriggersString = "'$($allTriggersList -join "','")'"
     $query = "SELECT '['+s.name+'].['+ trig.name+']'
     FROM sys.triggers trig
@@ -521,10 +561,18 @@ function DetectTriggerLeftovers(){
             [void]$runnableScript.AppendLine($deleteStatement)
             [void]$runnableScript.AppendLine("GO")
         }
-    } 
+    }
+}
+Catch
+{
+    Write-Host DetectTriggerLeftovers exception:
+    Write-Host $_.Exception.Message -ForegroundColor Red    
+} 
 }
 
 function DetectProcedureLeftovers(){
+Try
+{
     $allSPsString = "'$($allSPsList -join "','")'"
     $query = "SELECT '['+s.name+'].['+ p.name+']' 
     FROM sys.procedures p
@@ -549,16 +597,24 @@ function DetectProcedureLeftovers(){
             [void]$runnableScript.AppendLine($deleteStatement)
             [void]$runnableScript.AppendLine("GO") 
         }
-    } 
+    }
+}
+Catch
+{
+    Write-Host DetectProcedureLeftovers exception:
+    Write-Host $_.Exception.Message -ForegroundColor Red    
+} 
 }
 
 function DetectBulkTypeLeftovers(){
+Try
+{
     $allBulkTypeString = "'$($allBulkTypeList -join "','")'"
     $query = "select distinct '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' 'Type'
     from sys.table_types tt
     inner join sys.columns c on c.object_id = tt.type_table_object_id
     inner join sys.types t ON c.user_type_id = t.user_type_id
-    where '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' NOT IN (" + $allBulkTypeString + ")"
+    where SCHEMA_NAME(tt.schema_id) = 'DataSync' and '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' NOT IN (" + $allBulkTypeString + ")"
     
     $MemberCommand.CommandText = $query
     $result = $MemberCommand.ExecuteReader()
@@ -578,11 +634,18 @@ function DetectBulkTypeLeftovers(){
             [void]$runnableScript.AppendLine($deleteStatement)
             [void]$runnableScript.AppendLine("GO") 
         }
-    } 
+    }
+}
+Catch
+{
+    Write-Host DetectBulkTypeLeftovers exception:
+    Write-Host $_.Exception.Message -ForegroundColor Red    
+} 
 }
 
-function ValidateFKDependencies([Array] $userTables){    
-           
+function ValidateFKDependencies([Array] $userTables){
+Try
+{
     $allTablesFKString = "'$($userTables -join "','")'"
     
     $query = "SELECT 
@@ -618,6 +681,12 @@ WHERE t.name IS NULL AND '['+s.name +'].['+OBJECT_NAME(fk.parent_object_id)+']' 
     {
         Write-Host "No FKs referencing tables not used in sync group detected" -ForegroundColor Green
     }
+}
+Catch
+{
+    Write-Host ValidateFKDependencies exception:
+    Write-Host $_.Exception.Message -ForegroundColor Red    
+}
 }
 
 function ValidateProvisionMarker{
@@ -701,7 +770,7 @@ Catch
 function ValidateTableNames{
 Try
 {
-    $query = "SELECT DISTINCT t1.name AS TableName FROM sys.tables t1 LEFT JOIN sys.tables t2 ON t1.name = t2.name AND t1.object_id <> t2.object_id WHERE (t2.schema_id) IS NOT NULL" 
+    $query = "SELECT DISTINCT t1.name AS TableName FROM sys.tables t1 LEFT JOIN sys.tables t2 ON t1.name = t2.name AND t1.object_id <> t2.object_id WHERE (t2.schema_id) IS NOT NULL AND SCHEMA_NAME(t1.schema_id) NOT IN ('dss','TaskHosting')" 
     $MemberCommand.CommandText = $query
     $result = $MemberCommand.ExecuteReader()
     $datatable = new-object “System.Data.DataTable”
@@ -883,7 +952,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '4.5' `
+                    | Add-Member -PassThru NoteProperty name '4.6' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
@@ -1213,7 +1282,11 @@ function ValidateDSSMember(){
             $SyncJobsDataTable.Load($SyncJobsResult)
             $SyncJobsDataTable | Format-Table -Wrap -AutoSize
         }
-        
+
+        Write-Host
+        GetUIHistory        
+        Write-Host
+
         $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
         $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $Server, $Database, $MbrUser, $MbrPassword)
         
@@ -1248,17 +1321,15 @@ function ValidateDSSMember(){
             Write-Host $_.Exception.Message -ForegroundColor Red
         }
         
-        Write-Host
-        GetUIHistory        
-        Write-Host
-
         ### Database Validations ###
         ValidateCircularReferences
         ValidateTableNames
         ValidateObjectNames
         DetectComputedColumns
         DetectProvisioningIssues
-                    
+
+        ValidateTablesVSSyncDbSchema $SyncDbMembersDataTable
+        Write-Host
         Write-Host Getting scopes in this Hub/Member database...
         
         Try
@@ -1324,8 +1395,7 @@ function ValidateDSSMember(){
                         
                 ### Validations ###
                         
-                #Tables
-                ValidateTablesVSSyncDbSchema
+                #Tables                
                 ValidateTablesVSLocalSchema ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)
 
                 foreach($table in $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter)
@@ -1365,44 +1435,6 @@ function ValidateDSSMember(){
             Write-Host $_.Exception.Message -ForegroundColor Red
         } 
         
-        ### Provisioning Issues ###
-        foreach($syncDBscope in $SyncDbMembersDataTable){
-            $scopeExistsInMember = $MemberScopes | Where-Object {$_.sync_scope_name -eq $syncDBscope.scopename}
-            if(!$scopeExistsInMember)
-            {                
-                $unprovisionedSchema = ([xml]$syncDBscope.SchemaDescription).DssSyncScopeDescription.TableDescriptionCollection.DssTableDescription
-                foreach($unprovisionedTable in $unprovisionedSchema)
-                {
-                    $query = "SELECT 
-                     c.name 'ColumnName',
-                     t.Name 'Datatype',
-                     c.max_length 'MaxLength',
-                     c.is_nullable 'IsNullable'--,
-                     FROM sys.columns c
-                     INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-                     WHERE c.object_id = OBJECT_ID('" + $unprovisionedTable.QuotedTableName + "')" 
-        
-                    $MemberCommand.CommandText = $query
-                    $result = $MemberCommand.ExecuteReader()
-                    $datatable = new-object “System.Data.DataTable”
-                    $datatable.Load($result)
-
-                    foreach($unprovisionedColumn in $unprovisionedTable.ColumnsToSync.DssColumnDescription)
-                    {
-                        $scopeCol = $datatable | Where-Object ColumnName -eq $unprovisionedColumn.Name
-                        if(!$scopeCol)
-                        {
-                            $msg= "WARNING: "+ $unprovisionedTable.QuotedTableName + ".["+$unprovisionedColumn.Name+"] is missing in this database but exist in sync group schema, maybe preventing provisioning!"
-                            Write-Host
-                            Write-Host $msg -foreground Red
-                            Write-Host
-                            [void]$errorSummary.AppendLine($msg)
-                        }                
-                    }
-                }               
-            }            
-        }
-
         ### Detect Leftovers ###
         DetectTrackingTableLeftovers
         DetectTriggerLeftovers
@@ -1606,7 +1638,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.5 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.6 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
