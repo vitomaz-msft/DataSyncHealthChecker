@@ -1,4 +1,4 @@
-﻿#Azure SQL Data Sync Health Checker
+#Azure SQL Data Sync Health Checker
 
 #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
 #FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
@@ -16,19 +16,19 @@ $ExtendedValidationsTableFilter = @("All") # To validate all tables
 $ExtendedValidationsCommandTimeout = 900 #seconds
 
 
-#Sync metadata database
+#Sync metadata database (Only SQL Authentication is supported)
 $SyncDbServer = '.database.windows.net'
 $SyncDbDatabase = ''
 $SyncDbUser = '' 
 $SyncDbPassword = ''
 
-#Hub
+#Hub (Only SQL Authentication is supported)
 $HubServer = '.database.windows.net' 
 $HubDatabase = ''
 $HubUser = ''
 $HubPassword = ''
 
-#Member
+#Member (Only SQL Authentication is supported)
 $MemberServer = '' 
 $MemberDatabase = '' 
 $MemberUser = ''
@@ -206,7 +206,11 @@ Try
                         }
                         else
                         {
-                            if($syncGroupSchemaColumn.DataSize -ne $scopeCol.MaxLength)
+                            $colMaxLen=$scopeCol.MaxLength
+                            if($syncGroupSchemaColumn.DataType -eq 'nvarchar' -or $syncGroupSchemaColumn.DataType -eq 'nchar'){$colMaxLen=$colMaxLen/2}
+                            if($scopeCol.MaxLength -eq -1 -and ($syncGroupSchemaColumn.DataType -eq 'nvarchar' -or $syncGroupSchemaColumn.DataType -eq 'nchar' -or $syncGroupSchemaColumn.DataType -eq 'varbinary' -or $syncGroupSchemaColumn.DataType -eq 'varchar' -or $syncGroupSchemaColumn.DataType -eq 'nvarchar')){$colMaxLen='max'}
+
+                            if($syncGroupSchemaColumn.DataSize -ne $colMaxLen)
                             {
                                 $ValidateTablesVSSyncDbSchemaIssuesFound = $true 
                                 $msg="WARNING: " + $syncGroupSchemaTable + ".["+$syncGroupSchemaColumn.Name+"] has a different data size! ("+$syncGroupSchemaColumn.DataSize+" VS "+$scopeCol.MaxLength+")"
@@ -952,7 +956,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '4.6' `
+                    | Add-Member -PassThru NoteProperty name '4.6.1' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
@@ -1638,7 +1642,7 @@ function Monitor(){
 
 cls
 Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v4.6 Results"              -ForegroundColor Green
+Write-Host "        Data Sync Health Checker v4.6.1 Results"              -ForegroundColor Green
 Write-Host ************************************************************ -ForegroundColor Green
 Write-Host
 
