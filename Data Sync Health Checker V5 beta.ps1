@@ -5,7 +5,7 @@
 #WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 $HealthChecksEnabled = $true  #Set as $true or $false
-$MonitoringEnabled = $false  #Set as $true or $false
+$MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
 $MonitoringIntervalInSeconds = 30
 $MonitoringDurationInMinutes = 2
 $SendAnonymousUsageData = $true
@@ -15,8 +15,8 @@ $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I
 $ExtendedValidationsTableFilter = @("All") # To validate all tables
 #$ExtendedValidationsTableFilter = @("[dbo].[TableName1]","[dbo].[TableName2]") #to filter tables you need to validate, needs to be formatted like [SchemaName].[TableName]
 $ExtendedValidationsCommandTimeout = 900 #seconds
-$DumpMetadataSchemasForSyncGroup = 'SyncGroup1'
-$DumpMetadataobjectsForTable = '[dbo].[TableName1]' #needs to be formatted like [SchemaName].[TableName]
+$DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
+$DumpMetadataobjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
 
 #Sync metadata database (Only SQL Authentication is supported)
 $SyncDbServer = '.database.windows.net'
@@ -951,6 +951,16 @@ ORDER BY ui.[completionTime] DESC"
          $msg = "UI History:" 
          Write-Host $msg -foreground White         
          $datatable | Format-Table -Wrap -AutoSize
+
+         $top = $datatable  | Group-Object -Property SyncGroupName | ForEach-Object {$_ | Select-Object -ExpandProperty Group | Select-Object -First 1}
+         $shouldDump = $top | where { $_.OperationResult.Equals('ProvFailure') -or $_.OperationResult.Equals('ReprovFailure') }
+         if($shouldDump -ne $null -and $DumpMetadataSchemasForSyncGroup -eq '') 
+         {
+            foreach($error in $shouldDump)
+            {
+                DumpMetadataSchemasForSyncGroup $error.SyncGroupName
+            }
+         }
     }
 }
 Catch
@@ -978,10 +988,10 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.beta1' `
+                    | Add-Member -PassThru NoteProperty name '5.beta2' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
-                        | Add-Member -PassThru NoteProperty 'MonitoringEnabled' $MonitoringEnabled.ToString() `
+                        | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
                         | Add-Member -PassThru NoteProperty 'ExtendedValidationsEnabledForHub' $ExtendedValidationsEnabledForHub.ToString() `
                         | Add-Member -PassThru NoteProperty 'ExtendedValidationsEnabledForMember' $ExtendedValidationsEnabledForMember.ToString() )));
         
@@ -1005,7 +1015,7 @@ function ValidateSyncDB{
         }
         Catch
         {
-            Write-Host $_.Exception.Message
+            Write-Host $_.Exception.Message -ForegroundColor Red
             Test-NetConnection $SyncDbServer -Port 1433
             Break
         }
@@ -1210,7 +1220,7 @@ group by schema_name(schema_id)"
         $SyncDbMembersDataTableC.Load($SyncDbMembersResult)        
         Write-Host $SyncDbMembersDataTableC.C sync agents
     } 
-    Catch { Write-Host $_ }
+    Catch { Write-Host $_.Exception.Message -ForegroundColor Red }
     Finally
     {        
         if($SyncDbConnection){
@@ -1220,7 +1230,7 @@ group by schema_name(schema_id)"
     }
 }
 
-function DumpMetadataSchemasForSyncGroup{
+function DumpMetadataSchemasForSyncGroup([String] $syncGoupName){
     Try 
     {
         $SyncDbConnection = New-Object System.Data.SqlClient.SQLConnection
@@ -1233,7 +1243,7 @@ function DumpMetadataSchemasForSyncGroup{
         }
         Catch
         {
-            Write-Host $_.Exception.Message
+            Write-Host $_.Exception.Message -ForegroundColor Red
             Test-NetConnection $SyncDbServer -Port 1433
             Break
         }
@@ -1241,7 +1251,7 @@ function DumpMetadataSchemasForSyncGroup{
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
         
-        $query = "SELECT [schema_description] FROM [dss].[syncgroup] WHERE [name] = '" + $DumpMetadataSchemasForSyncGroup + "'" 
+        $query = "SELECT [schema_description] FROM [dss].[syncgroup] WHERE [name] = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1249,10 +1259,10 @@ function DumpMetadataSchemasForSyncGroup{
         if($datatable.Rows.Count -gt 0)
         {
             $xmlResult = $datatable.Rows[0].schema_description
-            $xmlResult | Out-File -filepath '.\syncgroup_schema_description.xml'
+            if($xmlResult){ $xmlResult | Out-File -filepath ('.\'+ $syncGoupName + '_schema_description.xml') }
         }
 
-        $query = "SELECT [ocsschemadefinition] FROM [dss].[syncgroup] WHERE [name] = '" + $DumpMetadataSchemasForSyncGroup + "'" 
+        $query = "SELECT [ocsschemadefinition] FROM [dss].[syncgroup] WHERE [name] = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1260,7 +1270,7 @@ function DumpMetadataSchemasForSyncGroup{
         if($datatable.Rows.Count -gt 0)
         {
             $xmlResult = $datatable.Rows[0].ocsschemadefinition
-            if($xmlResult){ $xmlResult | Out-File -filepath '.\syncgroup_ocsschemadefinition.xml' }
+            if($xmlResult){ $xmlResult | Out-File -filepath ('.\'+ $syncGoupName + '_ocsschemadefinition.xml') }
         }
 
 
@@ -1268,7 +1278,7 @@ function DumpMetadataSchemasForSyncGroup{
         FROM [dss].[syncgroup] as sg
         INNER JOIN [dss].[userdatabase] as ud on sg.hub_memberid = ud.id
         LEFT JOIN [dss].[syncgroupmember] as m on sg.id = m.syncgroupid
-        WHERE sg.name = '" + $DumpMetadataSchemasForSyncGroup + "'" 
+        WHERE sg.name = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1284,7 +1294,7 @@ function DumpMetadataSchemasForSyncGroup{
         FROM [dss].[syncgroup] as sg
         LEFT JOIN [dss].[syncgroupmember] as m on sg.id = m.syncgroupid
         LEFT JOIN [dss].[userdatabase] as ud2 on m.databaseid = ud2.id
-        WHERE sg.name = '" + $DumpMetadataSchemasForSyncGroup + "'" 
+        WHERE sg.name = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1298,7 +1308,7 @@ function DumpMetadataSchemasForSyncGroup{
             }            
         }        
     } 
-    Catch { Write-Host $_ }
+    Catch { Write-Host $_.Exception.Message -ForegroundColor Red }
     Finally
     {        
         if($SyncDbConnection){
@@ -1306,6 +1316,25 @@ function DumpMetadataSchemasForSyncGroup{
             $SyncDbConnection.Close()
         }        
     }
+}
+
+function GetIndexes($table){
+Try
+{ 
+    $query = "sp_helpindex '" + $table + "'"
+
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+    if($datatable.Rows.Count -gt 0)
+    {
+         $msg = "Indexes for " + $table +":"
+         Write-Host $msg -foreground Green         
+         $datatable | Format-Table -Wrap -AutoSize 
+    }
+}
+Catch { Write-Host $_.Exception.Message -ForegroundColor Red}
 }
 
 function ValidateDSSMember(){
@@ -1329,7 +1358,7 @@ function ValidateDSSMember(){
         }
         Catch
         {
-            Write-Host $_.Exception.Message
+            Write-Host $_.Exception.Message -ForegroundColor Red
             Test-NetConnection $SyncDbServer -Port 1433
             Break
         }
@@ -1368,6 +1397,23 @@ function ValidateDSSMember(){
         $SyncDbMembersDataTable.Rows | Sort-Object -Property scopename | Select scopename, SyncGroupName, MemberName, SyncDirection, State, HubState, JobId, Messages | Format-Table -Wrap -AutoSize
         $scopesList = $SyncDbMembersDataTable.Rows | Select -ExpandProperty scopename
         
+        $shouldMonitor = $SyncDbMembersDataTable.Rows | where { `            
+            $_.State.Equals('Provisioning')                     `
+            -or $_.State.Equals('SyncInProgress')               `
+            -or $_.State.Equals('DeProvisioning')               `
+            -or $_.State.Equals('DeProvisioned')                `
+            -or $_.State.Equals('Reprovisioning')               `
+            -or $_.State.Equals('SyncCancelling')               `
+            -or $_.HubState.Equals('Provisioning')              `
+            -or $_.HubState.Equals('DeProvisioning')            `
+            -or $_.HubState.Equals('DeProvisioned')             `
+            -or $_.HubState.Equals('Reprovisioning')            
+        }
+        if($shouldMonitor -and $MonitoringMode -eq 'AUTO')
+        {
+            $MonitoringMode = 'ENABLED'
+        }
+
         if(($SyncDbMembersDataTable.Rows | Measure-Object Messages -Sum).Sum -gt 0)
         {
             $allJobIds = "'$(($SyncDbMembersDataTable.Rows | Select -ExpandProperty JobId | Where-Object { $_.ToString() -ne '' }) -join "','")'"
@@ -1540,6 +1586,9 @@ function ValidateDSSMember(){
 
                     ## BulkType
                     if($table.BulkTableType){ ValidateBulkType $table.BulkTableType $table.Col }
+
+                    ## Indexes
+                    GetIndexes $table.Name
                 }
 
                 #Constraints
@@ -1563,16 +1612,17 @@ function ValidateDSSMember(){
 
         if($runnableScript.Length -gt 0)
         {
-            Write-Host
-            Write-Host --***************************************************************************************************************** -foreground "Green"  
-            Write-Host --LEFTOVERS CLEANUP SCRIPT : START                                   -foreground "Green"
-            Write-Host --Only applicable when this database is not being used by any other sync group in other regions and/or subscription -foreground "Yellow"  
-            Write-Host --***************************************************************************************************************** -foreground "Green"  
-            $runnableScript.ToString()
-            Write-Host --***************************************************************************************************************** -foreground "Green"  
-            Write-Host --LEFTOVERS CLEANUP SCRIPT : END                                     -foreground "Green"  
-            Write-Host --***************************************************************************************************************** -foreground "Green"  
-            Write-Host
+            $dumpScript = New-Object -TypeName 'System.Text.StringBuilder'
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")  
+            [void]$dumpScript.AppendLine(" --LEFTOVERS CLEANUP SCRIPT : START")
+            [void]$dumpScript.AppendLine(" --ONLY applicable when this database is not being used by any other sync group in other regions and/or subscription")
+            [void]$dumpScript.AppendLine(" --AND Data Sync Health Checker was able to access the right Sync Metadata Database")    
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")  
+            [void]$dumpScript.AppendLine($runnableScript.ToString())                                                                                                                           
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")  
+            [void]$dumpScript.AppendLine(" --LEFTOVERS CLEANUP SCRIPT : END")
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")              
+            ($dumpScript.ToString()) | Out-File -filepath ('.\' + $Server + '_' + $Database +'_leftovers.sql')
         }
         else
         {
@@ -1610,55 +1660,54 @@ function ValidateDSSMember(){
 }
 
 function Monitor(){
-    if($MonitoringEnabled)
+
+    Write-Host ****************************** -ForegroundColor Green
+    Write-Host             MONITORING 
+    Write-Host ****************************** -ForegroundColor Green
+    
+    $monitorUntil = (Get-Date).AddMinutes($MonitoringDurationInMinutes)
+        
+    $HubConnection = New-Object System.Data.SqlClient.SQLConnection
+    $HubConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $HubServer, $HubDatabase, $HubUser, $HubPassword)
+    $HubCommand = New-Object System.Data.SQLClient.SQLCommand
+    $HubCommand.Connection = $HubConnection
+    
+    Write-Host Connecting to Hub $HubServer"/"$HubDatabase
+    Try
     {
-        Write-Host ****************************** -ForegroundColor Green
-        Write-Host             MONITORING 
-        Write-Host ****************************** -ForegroundColor Green
-
-        $monitorUntil = (Get-Date).AddMinutes($MonitoringDurationInMinutes)
-            
-        $HubConnection = New-Object System.Data.SqlClient.SQLConnection
-        $HubConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $HubServer, $HubDatabase, $HubUser, $HubPassword)
-        $HubCommand = New-Object System.Data.SQLClient.SQLCommand
-        $HubCommand.Connection = $HubConnection
-
-        Write-Host Connecting to Hub $HubServer"/"$HubDatabase
-        Try
-        {
             $HubConnection.Open()
         }
-        Catch
-        {
+    Catch
+    {
             Write-Host $_.Exception.Message -ForegroundColor Red
             Test-NetConnection $HubServer -Port 1433
             Break
         }  
-
-        $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
-        $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
-        $MemberCommand = New-Object System.Data.SQLClient.SQLCommand
-        $MemberCommand.Connection = $MemberConnection
-
-        Write-Host Connecting to Member $MemberServer"/"$MemberDatabase
-        Try
-        {
+    
+    $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
+    $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
+    $MemberCommand = New-Object System.Data.SQLClient.SQLCommand
+    $MemberCommand.Connection = $MemberConnection
+    
+    Write-Host Connecting to Member $MemberServer"/"$MemberDatabase
+    Try
+    {
             $MemberConnection.Open()
         }
-        Catch
-        {
+    Catch
+    {
             Write-Host $_.Exception.Message -ForegroundColor Red
             Test-NetConnection $MemberServer -Port 1433
             Break
         } 
-        
-        $HubCommand.CommandText = "SELECT GETUTCDATE() as now"
-        $result = $HubCommand.ExecuteReader()
-        $datatable = new-object “System.Data.DataTable”
-        $datatable.Load($result)
-        $lasttime = $datatable.Rows[0].now
-
-        while((Get-Date) -le $monitorUntil){
+    
+    $HubCommand.CommandText = "SELECT GETUTCDATE() as now"
+    $result = $HubCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result)
+    $lasttime = $datatable.Rows[0].now
+    
+    while((Get-Date) -le $monitorUntil){
             
             $lastTimeString = ([DateTime]$lasttime).toString("yyyy-MM-dd HH:mm:ss")
             $lastTimeString = $lastTimeString.Replace('.',':')
@@ -1754,47 +1803,58 @@ function Monitor(){
             Write-Host "Waiting..." $MonitoringIntervalInSeconds "seconds..." -ForegroundColor Green
             Start-Sleep -s $MonitoringIntervalInSeconds
         }
-        Write-Host
-        Write-Host "Monitoring finished" -ForegroundColor Green
-    }
+    Write-Host
+    Write-Host "Monitoring finished" -ForegroundColor Green
 }
+
+Try 
+{
 
 cls
 $tempDir = $env:TEMP + '\DataSyncHealthChecker\' + [System.DateTime]::Now.ToString('yyyyMMddTHHmmss')
 New-Item $tempDir -ItemType directory | Out-Null
 Set-Location -Path $tempDir
-$file = '.\Log.txt'
-Try{
-Start-Transcript -Path $file
 
-Write-Host ************************************************************ -ForegroundColor Green
-Write-Host "        Data Sync Health Checker v5.beta1 Results"              -ForegroundColor Green
-Write-Host ************************************************************ -ForegroundColor Green
-Write-Host
-Write-Host Configuration: -ForegroundColor Green
-Write-Host PowerShell $PSVersionTable.PSVersion
-Write-Host HealthChecksEnabled $HealthChecksEnabled
-Write-Host MonitoringEnabled $MonitoringEnabled
-Write-Host MonitoringIntervalInSeconds $MonitoringIntervalInSeconds
-Write-Host SendAnonymousUsageData $SendAnonymousUsageData
-Write-Host ExtendedValidationsEnabledForHub $ExtendedValidationsEnabledForHub
-Write-Host ExtendedValidationsEnabledForMember $ExtendedValidationsEnabledForMember
-Write-Host ExtendedValidationsTableFilter $ExtendedValidationsTableFilter
-Write-Host ExtendedValidationsCommandTimeout $ExtendedValidationsCommandTimeout 
-
-if($SendAnonymousUsageData){ SendAnonymousUsageData }
-
-#SyncDB
-if($SyncDbServer -ne '' -and $SyncDbDatabase -ne '')
+Try 
 {
+    $file = '.\_SyncDB_Log.txt'
+    Start-Transcript -Path $file
+    
+    Write-Host ************************************************************ -ForegroundColor Green
+    Write-Host "        Data Sync Health Checker v5.beta2 Results"              -ForegroundColor Green
+    Write-Host ************************************************************ -ForegroundColor Green
     Write-Host
-    Write-Host ***************** Validating Sync Metadata Database ********************** -ForegroundColor Green
-    Write-Host 
-    ValidateSyncDB
-    if($DumpMetadataSchemasForSyncGroup -ne '')
+    Write-Host Configuration: -ForegroundColor Green
+    Write-Host PowerShell $PSVersionTable.PSVersion
+    Write-Host HealthChecksEnabled $HealthChecksEnabled
+    Write-Host MonitoringMode $MonitoringMode
+    Write-Host MonitoringIntervalInSeconds $MonitoringIntervalInSeconds
+    Write-Host SendAnonymousUsageData $SendAnonymousUsageData
+    Write-Host ExtendedValidationsEnabledForHub $ExtendedValidationsEnabledForHub
+    Write-Host ExtendedValidationsEnabledForMember $ExtendedValidationsEnabledForMember
+    Write-Host ExtendedValidationsTableFilter $ExtendedValidationsTableFilter
+    Write-Host ExtendedValidationsCommandTimeout $ExtendedValidationsCommandTimeout 
+    
+    if($SendAnonymousUsageData){ SendAnonymousUsageData }
+    
+    #SyncDB
+    if($SyncDbServer -ne '' -and $SyncDbDatabase -ne '')
     {
-        DumpMetadataSchemasForSyncGroup
-    }   
+        Write-Host
+        Write-Host ***************** Validating Sync Metadata Database ********************** -ForegroundColor Green
+        Write-Host 
+        ValidateSyncDB
+        if($DumpMetadataSchemasForSyncGroup -ne '')
+        {
+            DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
+        }   
+    }
+}
+Finally 
+{
+    Try{ Stop-Transcript | Out-Null } Catch [System.InvalidOperationException]{}
+    $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
+    (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file    
 }
 
 #Hub
@@ -1805,10 +1865,21 @@ $MbrPassword = $HubPassword
 $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
 if($Server -ne '' -and $Database -ne '')
 {
-    Write-Host
-    Write-Host ***************** Validating Hub ********************** -ForegroundColor Green
-    Write-Host 
-    ValidateDSSMember 
+    Try 
+    {
+        $file = '.\_Hub_Log.txt'
+        Start-Transcript -Path $file
+        Write-Host
+        Write-Host ***************** Validating Hub ********************** -ForegroundColor Green
+        Write-Host 
+        ValidateDSSMember
+    }
+    Finally 
+    {
+        Try{ Stop-Transcript | Out-Null } Catch [System.InvalidOperationException]{}
+        $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
+        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file        
+    }
 }
 
 #Member
@@ -1818,20 +1889,43 @@ $MbrUser = $MemberUser
 $MbrPassword = $MemberPassword
 $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
 if($Server -ne '' -and $Database -ne '')
-{    
-    Write-Host
-    Write-Host ***************** Validating Member ********************** -ForegroundColor Green
-    Write-Host
-    ValidateDSSMember
+{
+    Try 
+    {
+        $file = '.\_Member_Log.txt'
+        Start-Transcript -Path $file
+        Write-Host
+        Write-Host ***************** Validating Member ********************** -ForegroundColor Green
+        Write-Host
+        ValidateDSSMember
+    }
+    Finally 
+    {
+        Try{ Stop-Transcript | Out-Null } Catch [System.InvalidOperationException]{}
+        $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
+        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+    }
 }
 
 #Monitor
-Monitor
+if($MonitoringMode -eq 'ENABLED')
+{
+    Try 
+    {
+        $file = '.\_Monitoring_Log.txt'
+        Start-Transcript -Path $file
+        Monitor
+    }
+    Finally 
+    {
+        Try{ Stop-Transcript | Out-Null } Catch [System.InvalidOperationException]{}
+        $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
+        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+    }
+}
 
 }
-Finally {
-    Try{ Stop-Transcript | Out-Null } Catch [System.InvalidOperationException]{}
-    $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
-    (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+Finally 
+{
     ii $tempDir
 }
