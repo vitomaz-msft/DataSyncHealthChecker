@@ -6,7 +6,7 @@
 
 $HealthChecksEnabled = $true  #Set as $true or $false
 $MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
-$MonitoringIntervalInSeconds = 30
+$MonitoringIntervalInSeconds = 20
 $MonitoringDurationInMinutes = 2
 $SendAnonymousUsageData = $true
 
@@ -18,7 +18,6 @@ $ExtendedValidationsCommandTimeout = 900 #seconds
 $DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
 $DumpMetadataobjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
 
-#Sync metadata database (Only SQL Authentication is supported)
 $SyncDbServer = '.database.windows.net'
 $SyncDbDatabase = ''
 $SyncDbUser = '' 
@@ -31,7 +30,7 @@ $HubUser = ''
 $HubPassword = ''
 
 #Member (Only SQL Authentication is supported)
-$MemberServer = '' 
+$MemberServer = ''
 $MemberDatabase = '' 
 $MemberUser = ''
 $MemberPassword = ''
@@ -149,6 +148,28 @@ function ValidateTablesVSLocalSchema([Array] $userTables){
             ValidateTrackingRecords $userTable $TablePKList 
         }
     }
+}
+
+function ShowRowCount([Array] $userTables){    
+    $tablesList = New-Object System.Collections.ArrayList
+    foreach($item in $userTables){        
+        $tablesList.Add($item) > $null
+        $tablesList.Add('[DataSync].[' + ($item.Replace("[","").Replace("]","").Split('.')[1]) + '_dss_tracking]') > $null
+    }
+    $tablesListStr = "'$($tablesList -join "','")'"
+    $query = "SELECT '['+s.name+'].['+ t.name+']' as TableName, SUM(p.rows) as Rows
+FROM sys.partitions AS p INNER JOIN sys.tables AS t ON p.[object_id] = t.[object_id]
+INNER JOIN sys.schemas AS s ON t.[schema_id] = s.[schema_id] 
+WHERE p.index_id IN (0,1) AND '['+s.name+'].['+ t.name+']' IN ("+ $tablesListStr +")
+GROUP BY s.name, t.name ORDER BY s.name, t.name" 
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object “System.Data.DataTable”
+    $datatable.Load($result) 
+    if($datatable.Rows.Count -gt 0)
+    {     
+         $datatable | Format-Table -Wrap -AutoSize  
+    } 
 }
 
 function ValidateTablesVSSyncDbSchema($SyncDbScopes){
@@ -953,7 +974,7 @@ ORDER BY ui.[completionTime] DESC"
          $datatable | Format-Table -Wrap -AutoSize
 
          $top = $datatable  | Group-Object -Property SyncGroupName | ForEach-Object {$_ | Select-Object -ExpandProperty Group | Select-Object -First 1}
-         $shouldDump = $top | where { $_.OperationResult.Equals('ProvFailure') -or $_.OperationResult.Equals('ReprovFailure') }
+         $shouldDump = $top | where { $_.OperationResult -like '*Failure*' }
          if($shouldDump -ne $null -and $DumpMetadataSchemasForSyncGroup -eq '') 
          {
             foreach($error in $shouldDump)
@@ -988,7 +1009,7 @@ function SendAnonymousUsageData{
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.beta2' `
+                    | Add-Member -PassThru NoteProperty name '5.beta3' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1233,6 +1254,7 @@ group by schema_name(schema_id)"
 function DumpMetadataSchemasForSyncGroup([String] $syncGoupName){
     Try 
     {
+        Write-Host Running DumpMetadataSchemasForSyncGroup
         $SyncDbConnection = New-Object System.Data.SqlClient.SQLConnection
         $SyncDbConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $SyncDbServer, $SyncDbDatabase, $SyncDbUser, $SyncDbPassword)
         
@@ -1251,7 +1273,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName){
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
         
-        $query = "SELECT [schema_description] FROM [dss].[syncgroup] WHERE [name] = '" + $syncGoupName + "'" 
+        $query = "SELECT [schema_description] FROM [dss].[syncgroup] WHERE [schema_description] IS NOT NULL AND [name] = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1262,7 +1284,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName){
             if($xmlResult){ $xmlResult | Out-File -filepath ('.\'+ $syncGoupName + '_schema_description.xml') }
         }
 
-        $query = "SELECT [ocsschemadefinition] FROM [dss].[syncgroup] WHERE [name] = '" + $syncGoupName + "'" 
+        $query = "SELECT [ocsschemadefinition] FROM [dss].[syncgroup] WHERE [ocsschemadefinition] IS NOT NULL AND [name] = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1278,7 +1300,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName){
         FROM [dss].[syncgroup] as sg
         INNER JOIN [dss].[userdatabase] as ud on sg.hub_memberid = ud.id
         LEFT JOIN [dss].[syncgroupmember] as m on sg.id = m.syncgroupid
-        WHERE sg.name = '" + $syncGoupName + "'" 
+        WHERE [db_schema] IS NOT NULL AND sg.name = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1294,7 +1316,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName){
         FROM [dss].[syncgroup] as sg
         LEFT JOIN [dss].[syncgroupmember] as m on sg.id = m.syncgroupid
         LEFT JOIN [dss].[userdatabase] as ud2 on m.databaseid = ud2.id
-        WHERE sg.name = '" + $syncGoupName + "'" 
+        WHERE [db_schema] IS NOT NULL AND sg.name = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object “System.Data.DataTable”
@@ -1560,6 +1582,7 @@ function ValidateDSSMember(){
                         
                 #Tables                
                 ValidateTablesVSLocalSchema ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)
+                ShowRowCount ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select -ExpandProperty GlobalName)
 
                 foreach($table in $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter)
                 {        
