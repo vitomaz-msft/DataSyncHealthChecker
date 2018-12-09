@@ -18,20 +18,21 @@ $ExtendedValidationsCommandTimeout = 900 #seconds
 $DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
 $DumpMetadataobjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
 
+#Sync metadata database (Only SQL Authentication is supported)
 $SyncDbServer = '.database.windows.net'
 $SyncDbDatabase = ''
-$SyncDbUser = '' 
+$SyncDbUser = ''
 $SyncDbPassword = ''
 
 #Hub (Only SQL Authentication is supported)
-$HubServer = '.database.windows.net' 
+$HubServer = '.database.windows.net'
 $HubDatabase = ''
 $HubUser = ''
 $HubPassword = ''
 
 #Member (Only SQL Authentication is supported)
 $MemberServer = ''
-$MemberDatabase = '' 
+$MemberDatabase = ''
 $MemberUser = ''
 $MemberPassword = ''
 
@@ -157,11 +158,20 @@ function ShowRowCount([Array] $userTables){
         $tablesList.Add('[DataSync].[' + ($item.Replace("[","").Replace("]","").Split('.')[1]) + '_dss_tracking]') > $null
     }
     $tablesListStr = "'$($tablesList -join "','")'"
-    $query = "SELECT '['+s.name+'].['+ t.name+']' as TableName, SUM(p.rows) as Rows
-FROM sys.partitions AS p INNER JOIN sys.tables AS t ON p.[object_id] = t.[object_id]
-INNER JOIN sys.schemas AS s ON t.[schema_id] = s.[schema_id] 
-WHERE p.index_id IN (0,1) AND '['+s.name+'].['+ t.name+']' IN ("+ $tablesListStr +")
-GROUP BY s.name, t.name ORDER BY s.name, t.name" 
+    $query = "SELECT 
+'['+s.name+'].['+ t.name+']' as TableName,    
+p.rows AS RowCounts,
+CAST(ROUND(((SUM(a.total_pages) * 8) / 1024.00), 2) AS NUMERIC(36, 2)) AS TotalSpaceMB,
+CAST(ROUND(((SUM(a.used_pages) * 8) / 1024.00), 2) AS NUMERIC(36, 2)) AS UsedSpaceMB, 
+CAST(ROUND(((SUM(a.total_pages) - SUM(a.used_pages)) * 8) / 1024.00, 2) AS NUMERIC(36, 2)) AS UnusedSpaceMB
+FROM sys.tables t
+INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id
+INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id
+INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
+LEFT OUTER JOIN sys.schemas s ON t.schema_id = s.schema_id
+WHERE '['+s.name+'].['+ t.name+']' IN ("+ $tablesListStr +")
+GROUP BY t.Name, s.Name, p.Rows
+ORDER BY '['+s.name+'].['+ t.name+']'" 
     $MemberCommand.CommandText = $query
     $result = $MemberCommand.ExecuteReader()
     $datatable = new-object “System.Data.DataTable”
