@@ -40,9 +40,9 @@ $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I
 $ExtendedValidationsCommandTimeout = 900 #seconds
 
 ## Other
+$SendAnonymousUsageData = $true
 $DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
 $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
-$SendAnonymousUsageData = $true
 
 
 #####################################################################################################
@@ -58,7 +58,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
     }
         
     foreach ($userTable in $userTables) {
-        $TablePKList = New-Object System.Collections.ArrayList       
+        $TablePKList = New-Object System.Collections.ArrayList
         
         $query = "SELECT 
                      c.name 'ColumnName',
@@ -97,7 +97,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
                 [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):NOK ')
                 $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different datatype! (table:" + $userColumn.Datatype + " VS scope:" + $schemaColumn.type + ")"
                 Write-Host $msg -foreground "Red"
-                [void]$errorSummary.AppendLine($msg)                    
+                [void]$errorSummary.AppendLine($msg)
             } 
             else { 
                 [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):OK ')
@@ -146,7 +146,7 @@ function ShowRowCount([Array] $userTables) {
 
     $tablesList = New-Object System.Collections.ArrayList
     
-    foreach ($item in $userTables) {        
+    foreach ($item in $userTables) {
         $tablesList.Add($item) > $null
         $tablesList.Add('[DataSync].[' + ($item.Replace("[", "").Replace("]", "").Split('.')[1]) + '_dss_tracking]') > $null
     }
@@ -172,8 +172,8 @@ ORDER BY '['+s.name+'].['+ t.name+']'"
     $result = $MemberCommand.ExecuteReader()
     $datatable = new-object 'System.Data.DataTable'
     $datatable.Load($result) 
-    if ($datatable.Rows.Count -gt 0) {     
-        $datatable | Format-Table -Wrap -AutoSize  
+    if ($datatable.Rows.Count -gt 0) {
+        $datatable | Format-Table -Wrap -AutoSize
     } 
 }
 
@@ -221,7 +221,7 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                                 $ValidateTablesVSSyncDbSchemaIssuesFound = $true 
                                 $msg = "WARNING: " + $syncGroupSchemaTable + ".[" + $syncGroupSchemaColumn.Name + "] has a different datatype! (" + $syncGroupSchemaColumn.DataType + " VS " + $scopeCol.Datatype + ")"
                                 Write-Host $msg -foreground "Red"
-                                [void]$errorSummary.AppendLine($msg)                    
+                                [void]$errorSummary.AppendLine($msg)
                             }
                             else {
                                 $colMaxLen = $scopeCol.MaxLength
@@ -232,12 +232,12 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                                     $ValidateTablesVSSyncDbSchemaIssuesFound = $true 
                                     $msg = "WARNING: " + $syncGroupSchemaTable + ".[" + $syncGroupSchemaColumn.Name + "] has a different data size! (" + $syncGroupSchemaColumn.DataSize + " VS " + $scopeCol.MaxLength + ")"
                                     Write-Host $msg -foreground "Red"
-                                    [void]$errorSummary.AppendLine($msg)                    
+                                    [void]$errorSummary.AppendLine($msg)
                                 }
                             }
-                        }               
+                        }
                     }
-                }        
+                }
             }
             if (!$ValidateTablesVSSyncDbSchemaIssuesFound) {
                 Write-Host '- No issues detected for' $SyncDbScope.SyncGroupName -foreground "Green"
@@ -311,8 +311,8 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
     }     
 }
 
-function ValidateTrackingTable($table) {  
-  
+function ValidateTrackingTable($table) {
+
     if (![string]::IsNullOrEmpty($table)) {
         [void]$allTrackingTableList.Add($table)
     }
@@ -402,7 +402,7 @@ function ValidateSP([String] $SP) {
     }
 
     if ($DumpMetadataObjectsForTable) {
-        $tableNameWithoutSchema = ($DumpMetadataObjectsForTable.Replace("[", "").Replace("]", "").Split('.'))[1]
+        $tableNameWithoutSchema = ($DumpMetadataObjectsForTable.Replace("[", "").Replace("]", "").Split('.'))[1] + '_dss'
         if ($SP.IndexOf($tableNameWithoutSchema) -ne -1) {
             $query = "sp_helptext '" + $SP + "'" 
             $MemberCommand.CommandText = $query
@@ -444,7 +444,7 @@ function ValidateBulkType([String] $bulkType, $columns) {
     if ($count -gt 0) {
         Write-Host "Type" $bulkType "exists" -foreground "Green"
         foreach ($column in $columns) {
-            $sbCol = New-Object -TypeName "System.Text.StringBuilder"                        
+            $sbCol = New-Object -TypeName "System.Text.StringBuilder"
             $typeColumn = $table.Rows | Where-Object ColumnName -eq $column.name
             
             if (!$typeColumn) {
@@ -460,7 +460,7 @@ function ValidateBulkType([String] $bulkType, $columns) {
                 [void]$sbCol.Append('  Type(' + $column.type + '):NOK ')
                 $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different datatype! (type:" + $typeColumn.Datatype + " VS scope:" + $column.type + ")"
                 Write-Host $msg -foreground "Red"
-                [void]$errorSummary.AppendLine($msg)                    
+                [void]$errorSummary.AppendLine($msg)
             } 
             else { 
                 [void]$sbCol.Append('  Type(' + $column.type + '):OK ')
@@ -525,7 +525,7 @@ function DetectTrackingTableLeftovers() {
         }
         else {
             foreach ($leftover in $datatable) {
-                Write-Host "WARNING: Tracking Table" $leftover.FullTableName "should be a leftover." -foreground "yellow"             
+                Write-Host "WARNING: Tracking Table" $leftover.FullTableName "should be a leftover." -foreground "yellow"
                 $deleteStatement = "Drop Table " + $leftover.FullTableName + ";"
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO")
@@ -548,7 +548,7 @@ function DetectTrackingTableLeftovers() {
     }
     Catch {
         Write-Host DetectTrackingTableLeftovers exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     } 
 }
 
@@ -580,7 +580,7 @@ function DetectTriggerLeftovers() {
     }
     Catch {
         Write-Host DetectTriggerLeftovers exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     } 
 }
 
@@ -1078,7 +1078,7 @@ function ValidateSyncDB {
         $query = "select name from sys.sysusers where name in ('##MS_SyncAccount##','DataSync_reader','DataSync_executor','DataSync_admin')" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
-        $datatable = new-object "'System.Data.DataTable"
+        $datatable = new-object 'System.Data.DataTable'
         $datatable.Load($result)
 
         if (($datatable.Rows | Where-Object {$_.name -eq "##MS_SyncAccount##"} | Measure-Object).Count -gt 0) { Write-Host "##MS_SyncAccount## exists" -foreground White }
@@ -1459,7 +1459,7 @@ function ValidateDSSMember() {
                     }
                 }
                 else {
-                    $xmlcontent = [xml]$scope.config_data                
+                    $xmlcontent = [xml]$scope.config_data
                     $global:scope_config_data = $xmlcontent
 
                     Try {
@@ -1722,14 +1722,19 @@ Try {
         Write-Host HealthChecksEnabled $HealthChecksEnabled
         Write-Host MonitoringMode $MonitoringMode
         Write-Host MonitoringIntervalInSeconds $MonitoringIntervalInSeconds
+        Write-Host MonitoringDurationInMinutes $MonitoringDurationInMinutes
         Write-Host SendAnonymousUsageData $SendAnonymousUsageData
         Write-Host ExtendedValidationsEnabledForHub $ExtendedValidationsEnabledForHub
         Write-Host ExtendedValidationsEnabledForMember $ExtendedValidationsEnabledForMember
         Write-Host ExtendedValidationsTableFilter $ExtendedValidationsTableFilter
-        Write-Host ExtendedValidationsCommandTimeout $ExtendedValidationsCommandTimeout 
-    
-        if ($SendAnonymousUsageData) { SendAnonymousUsageData }
-    
+        Write-Host ExtendedValidationsCommandTimeout $ExtendedValidationsCommandTimeout
+        Write-Host DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
+        Write-Host DumpMetadataObjectsForTable $DumpMetadataObjectsForTable
+
+        if ($SendAnonymousUsageData) {
+            SendAnonymousUsageData 
+        }
+
         #SyncDB
         if ($SyncDbServer -ne '' -and $SyncDbDatabase -ne '') {
             Write-Host
