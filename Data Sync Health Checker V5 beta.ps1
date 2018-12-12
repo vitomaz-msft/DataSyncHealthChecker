@@ -46,6 +46,7 @@ $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[Tabl
 
 
 #####################################################################################################
+
 function ValidateTablesVSLocalSchema([Array] $userTables) {
     
     if ($userTables.Count -eq 0) {
@@ -102,11 +103,11 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
             else { 
                 [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):OK ')
             }
-                
+
             $colMaxLen = $userColumn.MaxLength
 
             if ($schemaColumn.type -eq 'nvarchar' -or $schemaColumn.type -eq 'nchar') {$colMaxLen = $colMaxLen / 2}
-                
+
             if ($userColumn.MaxLength -eq -1 -and ($schemaColumn.type -eq 'nvarchar' -or $schemaColumn.type -eq 'nchar' -or $schemaColumn.type -eq 'varbinary' -or $schemaColumn.type -eq 'varchar' -or $schemaColumn.type -eq 'nvarchar')) {$colMaxLen = 'max'}
 
             if ($schemaColumn.size -ne $colMaxLen) {
@@ -133,9 +134,9 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
                 
             $sbColString = $sbCol.ToString()
             if ($sbColString -match 'NOK') { Write-Host $sbColString -ForegroundColor Red } else { Write-Host $sbColString -ForegroundColor Green }
-                
+
         }
-        
+
         if ($ExtendedValidationsEnabled -and (($ExtendedValidationsTableFilter -contains 'All') -or ($ExtendedValidationsTableFilter -contains $userTable))) { 
             ValidateTrackingRecords $userTable $TablePKList 
         }
@@ -150,9 +151,9 @@ function ShowRowCount([Array] $userTables) {
         $tablesList.Add($item) > $null
         $tablesList.Add('[DataSync].[' + ($item.Replace("[", "").Replace("]", "").Split('.')[1]) + '_dss_tracking]') > $null
     }
-    
+
     $tablesListStr = "'$($tablesList -join "','")'"
-    
+
     $query = "SELECT 
 '['+s.name+'].['+ t.name+']' as TableName,    
 p.rows AS RowCounts,
@@ -184,10 +185,10 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
             $ValidateTablesVSSyncDbSchemaIssuesFound = $false
             $syncdbscopeobj = ([xml]$SyncDbScope.SchemaDescription).DssSyncScopeDescription.TableDescriptionCollection.DssTableDescription
             $syncGroupSchemaTables = $syncdbscopeobj | Select-Object -ExpandProperty QuotedTableName
-           
+
             foreach ($syncGroupSchemaTable in $syncGroupSchemaTables) {        
                 $syncGroupSchemaColumns = $syncdbscopeobj | Where-Object {$_.QuotedTableName -eq $syncGroupSchemaTable} | Select-Object -ExpandProperty ColumnsToSync
-        
+
                 $query = "SELECT 
                          c.name 'ColumnName',
                          t.Name 'Datatype',
@@ -207,7 +208,7 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                     Write-Host $msg -foreground Red
                     [void]$errorSummary.AppendLine($msg)
                 }
-                else {        
+                else {
                     foreach ($syncGroupSchemaColumn in $syncGroupSchemaColumns.DssColumnDescription) {
                         $scopeCol = $datatable | Where-Object ColumnName -eq $syncGroupSchemaColumn.Name
                         if (!$scopeCol) {
@@ -254,16 +255,16 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
     Try {
         Write-Host "Running ValidateTrackingRecords for" $table "..." -foreground Green
         $tableNameWithoutSchema = ($table.Replace("[", "").Replace("]", "").Split('.'))[1]
-    
+
         $sbQuery = New-Object -TypeName "System.Text.StringBuilder"
         $sbDeleteQuery = New-Object -TypeName "System.Text.StringBuilder"
-    
+
         [void]$sbQuery.Append("SELECT COUNT(*) AS C FROM DataSync.")
         [void]$sbQuery.Append($tableNameWithoutSchema)
         [void]$sbQuery.Append("_dss_tracking t WITH (NOLOCK) WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
         [void]$sbQuery.Append($table)
         [void]$sbQuery.Append(" s WITH (NOLOCK) WHERE ")
-    
+
         [void]$sbDeleteQuery.Append("DELETE DataSync.")
         [void]$sbDeleteQuery.Append($tableNameWithoutSchema)
         [void]$sbDeleteQuery.Append("_dss_tracking FROM DataSync.")
@@ -271,7 +272,7 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
         [void]$sbDeleteQuery.Append("_dss_tracking t WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
         [void]$sbDeleteQuery.Append($table)
         [void]$sbDeleteQuery.Append(" s WHERE ")
-    
+
         for ($i = 0; $i -lt $tablePKList.Length; $i++) {
             if ($i -gt 0) { 
                 [void]$sbQuery.Append(" AND ")
@@ -282,7 +283,7 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
         }
         [void]$sbQuery.Append(")")
         [void]$sbDeleteQuery.Append(")")
-    
+
         $previousMemberCommandTimeout = $MemberCommand.CommandTimeout
         $MemberCommand.CommandTimeout = $ExtendedValidationsCommandTimeout
         $MemberCommand.CommandText = $sbQuery.ToString()
@@ -308,7 +309,7 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
     Catch {
         Write-Host "Error at ValidateTrackingRecords" $table -foreground "Red"
         Write-Host $_.Exception.Message -ForegroundColor Red        
-    }     
+    }
 }
 
 function ValidateTrackingTable($table) {
@@ -316,7 +317,7 @@ function ValidateTrackingTable($table) {
     if (![string]::IsNullOrEmpty($table)) {
         [void]$allTrackingTableList.Add($table)
     }
-    
+
     $query = "SELECT COUNT(*) AS C FROM INFORMATION_SCHEMA.TABLES WHERE '['+TABLE_SCHEMA+'].['+ TABLE_NAME + ']' = '" + $table + "'"
 
     $MemberCommand.CommandText = $query
@@ -324,11 +325,11 @@ function ValidateTrackingTable($table) {
     $datatable = new-object 'System.Data.DataTable'
     $datatable.Load($result)
     $count = $datatable | Select-Object C -ExpandProperty C
-    
+
     if ($count -eq 1) {
         Write-Host "Tracking Table " $table "exists" -foreground "Green" 
     }
-    
+
     if ($count -eq 0) {
         $msg = "WARNING: Tracking Table " + $table + " IS MISSING!"
         Write-Host $msg -foreground Red
@@ -354,7 +355,7 @@ function ValidateTrigger([String] $trigger) {
     $table = new-object 'System.Data.DataTable'
     $table.Load($result)
     $count = $table.Rows.Count
-    
+
     if ($count -eq 1) {
         if ($table.Rows[0].Disabled -eq 1) {
             $msg = "WARNING: Trigger " + $trigger + " exists but is DISABLED!" 
@@ -365,7 +366,7 @@ function ValidateTrigger([String] $trigger) {
             Write-Host "Trigger" $trigger "exists and is enabled." -foreground "Green" 
         }
     }
-    
+
     if ($count -eq 0) {
         $msg = "WARNING: Trigger " + $trigger + " IS MISSING!" 
         Write-Host $msg -foreground Red
@@ -374,27 +375,27 @@ function ValidateTrigger([String] $trigger) {
 }
 
 function ValidateSP([String] $SP) {
-    
+
     if (![string]::IsNullOrEmpty($SP)) { 
         [void]$allSPsList.Add($SP)
     }
-    
+
     $query = "
     SELECT COUNT(*) AS C 
     FROM sys.procedures p
     INNER JOIN sys.schemas s ON p.schema_id = s.schema_id 
     WHERE '['+s.name+'].['+ p.name+']' = '" + $SP + "'"
-    
+
     $MemberCommand.CommandText = $query
     $result = $MemberCommand.ExecuteReader()
     $table = new-object 'System.Data.DataTable'
     $table.Load($result)
     $count = $table | Select-Object C -ExpandProperty C
-    
+
     if ($count -eq 1) {
         Write-Host "Procedure" $SP "exists" -foreground "Green" 
     }
-    
+
     if ($count -eq 0) {
         $msg = "WARNING: Procedure " + $SP + " IS MISSING!"
         Write-Host $msg -foreground Red
@@ -869,13 +870,59 @@ function DetectComputedColumns {
 
 function GetUIHistory {
     Try {
-        $query = "SELECT TOP(20) ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult, 
-        CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1]', 'nvarchar(max)') as Error
+        $query = "WITH UIHistory_CTE ([completionTime], SyncGroupName,DatabaseName,OperationResult,Seconds,Upload,UploadFailed,Download,DownloadFailed, Error)  
+        AS  
+        (
+        SELECT ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1]', 'nvarchar(max)') as Seconds
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[2]', 'nvarchar(max)') as Upload
+        ,'' as UploadFailed
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[3]', 'nvarchar(max)') as Download
+        ,'' as DownloadFailed
+        ,'' as Error
         FROM [dss].[UIHistory] AS ui
         INNER JOIN [dss].[syncgroup] AS sg on ui.syncgroupId = sg.id
         INNER JOIN [dss].[userdatabase] AS ud on ui.databaseid = ud.id
-        WHERE ud.[server] = '" + $Server + "' and ud.[database] = '" + $Database + "'
-        ORDER BY ui.[completionTime] DESC"
+        WHERE ui.[detailEnumId] = 'SyncSuccess' AND ud.[server] = '" + $Server + "' AND ud.[database] = '" + $Database + "'
+        UNION ALL
+        SELECT ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1]', 'nvarchar(max)') as Seconds
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[2]', 'nvarchar(max)') as Upload
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[3]', 'nvarchar(max)') as UploadFailed
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[4]', 'nvarchar(max)') as Download
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[5]', 'nvarchar(max)') as DownloadFailed
+        ,'' as Error
+        FROM [dss].[UIHistory] AS ui
+        INNER JOIN [dss].[syncgroup] AS sg on ui.syncgroupId = sg.id
+        INNER JOIN [dss].[userdatabase] AS ud on ui.databaseid = ud.id
+        WHERE ui.[detailEnumId] = 'SyncSuccessWithWarning' AND ud.[server] = '" + $Server + "' AND ud.[database] = '" + $Database + "'
+        UNION ALL
+        SELECT ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult
+        ,'' as Seconds
+        ,'' as Upload
+        ,'' as UploadFailed
+        ,'' as Download
+        ,'' as DownloadFailed
+        ,CAST (ui.detailStringParameters as XML).value('(/ArrayOfString//string/node())[1]', 'nvarchar(max)') as Error
+        FROM [dss].[UIHistory] AS ui
+        INNER JOIN [dss].[syncgroup] AS sg on ui.syncgroupId = sg.id
+        INNER JOIN [dss].[userdatabase] AS ud on ui.databaseid = ud.id
+        WHERE ui.[detailEnumId] like '%Failure' AND ud.[server] = '" + $Server + "' AND ud.[database] = '" + $Database + "'
+        UNION ALL
+        SELECT ui.[completionTime], sg.[name] SyncGroupName, ud.[database] DatabaseName, ui.[detailEnumId] OperationResult
+        ,'' as Seconds
+        ,'' as Upload
+        ,'' as UploadFailed
+        ,'' as Download
+        ,'' as DownloadFailed
+        ,'' as Error
+        FROM [dss].[UIHistory] AS ui
+        INNER JOIN [dss].[syncgroup] AS sg on ui.syncgroupId = sg.id
+        INNER JOIN [dss].[userdatabase] AS ud on ui.databaseid = ud.id
+        WHERE ui.[detailEnumId] != 'SyncSuccess' AND ui.[detailEnumId] != 'SyncSuccessWithWarning' AND ui.[detailEnumId] NOT LIKE '%Failure'
+        AND ud.[server] = '" + $Server + "' AND ud.[database] = '" + $Database + "')
+        SELECT TOP(20) [completionTime],SyncGroupName,OperationResult,Seconds,Upload,UploadFailed AS UpFailed,Download,DownloadFailed AS DFailed,Error
+        FROM UIHistory_CTE ORDER BY [completionTime] DESC"
  
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
@@ -884,7 +931,7 @@ function GetUIHistory {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "UI History:" 
-            Write-Host $msg -foreground White         
+            Write-Host $msg -foreground White
             $datatable | Format-Table -Wrap -AutoSize
             $top = $datatable | Group-Object -Property SyncGroupName | ForEach-Object {$_ | Select-Object -ExpandProperty Group | Select-Object -First 1}
             $shouldDump = $top | Where-Object { $_.OperationResult -like '*Failure*' }
@@ -918,7 +965,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.beta4' `
+                    | Add-Member -PassThru NoteProperty name '5.beta5' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1628,7 +1675,8 @@ function Monitor() {
                       inner join sys.schemas s
                       on s.schema_id=o.schema_id
                       where s.name = 'DataSync'
-                      and p.last_execution_time > '" + $lastTimeString + "' order by p.last_execution_time desc" 
+                      and p.last_execution_time > '" + $lastTimeString + "' 
+                      order by p.last_execution_time desc" 
 
         $HubCommand.CommandText = $query
         $HubResult = $HubCommand.ExecuteReader()
@@ -1714,7 +1762,7 @@ Try {
         Start-Transcript -Path $file
 
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5.beta4 Results"          -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v5.beta5 Results"          -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
@@ -1761,7 +1809,7 @@ Try {
     $MbrUser = $HubUser
     $MbrPassword = $HubPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
-    if ($Server -ne '' -and $Database -ne '') {
+    if ($HealthChecksEnabled -and $Server -ne '' -and $Database -ne '') {
         Try {
             $file = '.\_Hub_Log.txt'
             Start-Transcript -Path $file
@@ -1786,7 +1834,7 @@ Try {
     $MbrUser = $MemberUser
     $MbrPassword = $MemberPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
-    if ($Server -ne '' -and $Database -ne '') {
+    if ($HealthChecksEnabled -and $Server -ne '' -and $Database -ne '') {
         Try {
             $file = '.\_Member_Log.txt'
             Start-Transcript -Path $file
