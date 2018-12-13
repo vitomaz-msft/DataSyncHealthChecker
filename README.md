@@ -15,32 +15,46 @@ It also has monitoring capabilities that will let us know which Data Sync stored
 
 4 - Set the parameters on the top of the script, you need to set server names, database names, users and passwords:
 ```powershell
-$HealthChecksEnabled = $true  #Set as $true or $false
-$MonitoringEnabled = $false  #Set as $true or $false
-$MonitoringIntervalInSeconds = 30
-
-$ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
-$ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
-$ExtendedValidationsTableFilter = @("All") # To validate all tables
-#$ExtendedValidationsTableFilter = @("[dbo].[TableName1]","[dbo].[TableName2]") #to filter tables you need to validade, needs to be formated like [SchemaName].[TableName]
-$ExtendedValidationsCommandTimeout = 900 #seconds
-
-#Sync metadata database
+## Databases and credentials
+# Sync metadata database credentials (Only SQL Authentication is supported)
 $SyncDbServer = '.database.windows.net'
 $SyncDbDatabase = ''
 $SyncDbUser = ''
 $SyncDbPassword = ''
 
-#Hub
+# Hub credentials (Only SQL Authentication is supported)
 $HubServer = '.database.windows.net'
 $HubDatabase = ''
 $HubUser = ''
 $HubPassword = ''
 
-#Member (Azure SQL DB or SQL Server)
-$MemberServer = '.database.windows.net'
+# Member credentials (Azure SQL DB or SQL Server, only SQL Authentication is supported)
+$MemberServer = ''
 $MemberDatabase = ''
 $MemberUser = ''
 $MemberPassword = ''
+
+## Health checks
+$HealthChecksEnabled = $true  #Set as $true or $false
+
+## Monitoring
+$MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
+$MonitoringIntervalInSeconds = 20
+$MonitoringDurationInMinutes = 2
+
+## Tracking Record Validations
+# Set as "All" to validate all tables
+# or pick the tables you need using '[dbo].[TableName1]','[dbo].[TableName2]'
+$ExtendedValidationsTableFilter = @('All') 
+$ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsCommandTimeout = 900 #seconds
+
+## Other
+$SendAnonymousUsageData = $true
+$DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
+$DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
+
 ```
-5 – Run it and send us the results.
+5 – Run it.
+6 – A folder with all the result files will be opened after the script completes, please send us all the files.
