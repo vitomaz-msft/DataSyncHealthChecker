@@ -51,7 +51,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
     
     if ($userTables.Count -eq 0) {
         $msg = "WARNING: member schema with 0 tables was detected, maybe related to provisioning issues."
-        Write-Host $msg -foreground Red
+        Write-Host $msg -Foreground Red
         [void]$errorSummary.AppendLine($msg)
     }
     else {
@@ -81,7 +81,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
             if (!$schemaColumn) {
                 if ($userColumn.IsNullable -eq $false) {
                     $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] is not included in the sync group but is NOT NULLABLE!"
-                    Write-Host $msg -foreground "Red"
+                    Write-Host $msg -Foreground Red
                     [void]$errorSummary.AppendLine($msg)
                 }
                 continue
@@ -97,7 +97,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
             if ($schemaColumn.type -ne $userColumn.Datatype) { 
                 [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):NOK ')
                 $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different datatype! (table:" + $userColumn.Datatype + " VS scope:" + $schemaColumn.type + ")"
-                Write-Host $msg -foreground "Red"
+                Write-Host $msg -Foreground Red
                 [void]$errorSummary.AppendLine($msg)
             } 
             else { 
@@ -113,7 +113,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
             if ($schemaColumn.size -ne $colMaxLen) {
                 [void]$sbCol.Append('  Size(' + $schemaColumn.size + '):NOK ') 
                 $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different data size!(table:" + $colMaxLen + " VS scope:" + $schemaColumn.size + ")"
-                Write-Host $msg -foreground "Red"
+                Write-Host $msg -Foreground Red
                 [void]$errorSummary.AppendLine($msg)
             }
             else { 
@@ -124,7 +124,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
                 if ($schemaColumn.null -ne $userColumn.IsNullable) { 
                     [void]$sbCol.Append('  Nullable(' + $schemaColumn.null + '):NOK ')
                     $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different IsNullable! (table:" + $userColumn.IsNullable + " VS scope:" + $schemaColumn.null + ")"
-                    Write-Host $msg -foreground "Red"
+                    Write-Host $msg -Foreground Red
                     [void]$errorSummary.AppendLine($msg) 
                 } 
                 else { 
@@ -181,7 +181,7 @@ ORDER BY '['+s.name+'].['+ t.name+']'"
 function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
     Try {
         foreach ($SyncDbScope in $SyncDbScopes) {
-            Write-Host 'Validating Table(s) VS SyncDB for' $SyncDbScope.SyncGroupName':' -foreground "White"
+            Write-Host 'Validating Table(s) VS SyncDB for' $SyncDbScope.SyncGroupName':' -Foreground White
             $ValidateTablesVSSyncDbSchemaIssuesFound = $false
             $syncdbscopeobj = ([xml]$SyncDbScope.SchemaDescription).DssSyncScopeDescription.TableDescriptionCollection.DssTableDescription
             $syncGroupSchemaTables = $syncdbscopeobj | Select-Object -ExpandProperty QuotedTableName
@@ -205,7 +205,7 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                 if ($datatable.Rows.Count -eq 0) {
                     $ValidateTablesVSSyncDbSchemaIssuesFound = $true
                     $msg = "WARNING: " + $syncGroupSchemaTable + " does not exist in the database but exist in the sync group schema."
-                    Write-Host $msg -foreground Red
+                    Write-Host $msg -Foreground Red
                     [void]$errorSummary.AppendLine($msg)
                 }
                 else {
@@ -214,14 +214,14 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                         if (!$scopeCol) {
                             $ValidateTablesVSSyncDbSchemaIssuesFound = $true
                             $msg = "WARNING: " + $syncGroupSchemaTable + ".[" + $syncGroupSchemaColumn.Name + "] is missing in this database but exist in sync group schema, maybe preventing provisioning/re-provisioning!"
-                            Write-Host $msg -foreground Red
-                            [void]$errorSummary.AppendLine($msg)                
+                            Write-Host $msg -Foreground Red
+                            [void]$errorSummary.AppendLine($msg)
                         }
                         else {
                             if ($syncGroupSchemaColumn.DataType -ne $scopeCol.Datatype) {
                                 $ValidateTablesVSSyncDbSchemaIssuesFound = $true 
                                 $msg = "WARNING: " + $syncGroupSchemaTable + ".[" + $syncGroupSchemaColumn.Name + "] has a different datatype! (" + $syncGroupSchemaColumn.DataType + " VS " + $scopeCol.Datatype + ")"
-                                Write-Host $msg -foreground "Red"
+                                Write-Host $msg -Foreground Red
                                 [void]$errorSummary.AppendLine($msg)
                             }
                             else {
@@ -232,7 +232,7 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                                 if ($syncGroupSchemaColumn.DataSize -ne $colMaxLen) {
                                     $ValidateTablesVSSyncDbSchemaIssuesFound = $true 
                                     $msg = "WARNING: " + $syncGroupSchemaTable + ".[" + $syncGroupSchemaColumn.Name + "] has a different data size! (" + $syncGroupSchemaColumn.DataSize + " VS " + $scopeCol.MaxLength + ")"
-                                    Write-Host $msg -foreground "Red"
+                                    Write-Host $msg -Foreground Red
                                     [void]$errorSummary.AppendLine($msg)
                                 }
                             }
@@ -241,19 +241,19 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                 }
             }
             if (!$ValidateTablesVSSyncDbSchemaIssuesFound) {
-                Write-Host '- No issues detected for' $SyncDbScope.SyncGroupName -foreground "Green"
+                Write-Host '- No issues detected for' $SyncDbScope.SyncGroupName -Foreground Green
             }
         }
     }
     Catch {
         Write-Host ValidateTablesVSSyncDbSchema exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
 function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
     Try {
-        Write-Host "Running ValidateTrackingRecords for" $table "..." -foreground Green
+        Write-Host "Running ValidateTrackingRecords for" $table "..." -Foreground Green
         $tableNameWithoutSchema = ($table.Replace("[", "").Replace("]", "").Split('.'))[1]
 
         $sbQuery = New-Object -TypeName "System.Text.StringBuilder"
@@ -294,21 +294,21 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
         $MemberCommand.CommandTimeout = $previousMemberCommandTimeout
 
         if ($count -ne 0) {
-            $msg = "WARNING: Tracking Records for Table " + $table + " may have " + $count + " invalid records!" 
-            Write-Host $msg -foreground Red
-            Write-Host $sbDeleteQuery.ToString() -foreground Yellow
+            $msg = "WARNING: Tracking Records for Table " + $table + " may have " + $count + " invalid records!"
+            Write-Host $msg -Foreground Red
+            Write-Host $sbDeleteQuery.ToString() -Foreground Yellow
             [void]$errorSummary.AppendLine($msg) 
-            [void]$errorSummary.AppendLine($sbDeleteQuery.ToString()) 
+            [void]$errorSummary.AppendLine($sbDeleteQuery.ToString())
         }
         else {
-            $msg = "No issues detected in Tracking Records for Table " + $table 
-            Write-Host $msg -foreground Green
+            $msg = "No issues detected in Tracking Records for Table " + $table
+            Write-Host $msg -Foreground Green
         }
     
     }
     Catch {
-        Write-Host "Error at ValidateTrackingRecords" $table -foreground "Red"
-        Write-Host $_.Exception.Message -ForegroundColor Red        
+        Write-Host "Error at ValidateTrackingRecords" $table -Foreground Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -327,19 +327,19 @@ function ValidateTrackingTable($table) {
     $count = $datatable | Select-Object C -ExpandProperty C
 
     if ($count -eq 1) {
-        Write-Host "Tracking Table " $table "exists" -foreground "Green" 
+        Write-Host "Tracking Table " $table "exists" -Foreground Green
     }
 
     if ($count -eq 0) {
         $msg = "WARNING: Tracking Table " + $table + " IS MISSING!"
-        Write-Host $msg -foreground Red
+        Write-Host $msg -Foreground Red
         [void]$errorSummary.AppendLine($msg)
     }
 }
 
 function ValidateTrigger([String] $trigger) {
     
-    if (![string]::IsNullOrEmpty($trigger)) {    
+    if (![string]::IsNullOrEmpty($trigger)) {
         [void]$allTriggersList.Add($trigger)
     }
 
@@ -359,17 +359,17 @@ function ValidateTrigger([String] $trigger) {
     if ($count -eq 1) {
         if ($table.Rows[0].Disabled -eq 1) {
             $msg = "WARNING: Trigger " + $trigger + " exists but is DISABLED!" 
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
             [void]$errorSummary.AppendLine($msg)
         }
         else {
-            Write-Host "Trigger" $trigger "exists and is enabled." -foreground "Green" 
+            Write-Host "Trigger" $trigger "exists and is enabled." -Foreground Green
         }
     }
 
     if ($count -eq 0) {
         $msg = "WARNING: Trigger " + $trigger + " IS MISSING!" 
-        Write-Host $msg -foreground Red
+        Write-Host $msg -Foreground Red
         [void]$errorSummary.AppendLine($msg)
     }
 }
@@ -393,12 +393,12 @@ function ValidateSP([String] $SP) {
     $count = $table | Select-Object C -ExpandProperty C
 
     if ($count -eq 1) {
-        Write-Host "Procedure" $SP "exists" -foreground "Green" 
+        Write-Host "Procedure" $SP "exists" -Foreground Green 
     }
 
     if ($count -eq 0) {
         $msg = "WARNING: Procedure " + $SP + " IS MISSING!"
-        Write-Host $msg -foreground Red
+        Write-Host $msg -Foreground Red
         [void]$errorSummary.AppendLine($msg)
     }
 
@@ -420,11 +420,11 @@ function ValidateSP([String] $SP) {
 }
 
 function ValidateBulkType([String] $bulkType, $columns) {
-    
+
     if (![string]::IsNullOrEmpty($bulkType)) { 
         [void]$allBulkTypeList.Add($bulkType)
     }
-    
+
     $query = "select tt.name 'Type',
     c.name 'ColumnName',
     t.Name 'Datatype',
@@ -435,22 +435,22 @@ function ValidateBulkType([String] $bulkType, $columns) {
     inner join sys.columns c on c.object_id = tt.type_table_object_id
     inner join sys.types t ON c.user_type_id = t.user_type_id
     where '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' ='" + $bulkType + "'" 
-    
+
     $MemberCommand.CommandText = $query
     $result = $MemberCommand.ExecuteReader()
     $table = new-object 'System.Data.DataTable'
     $table.Load($result)
     $count = $table.Rows.Count
-    
+
     if ($count -gt 0) {
-        Write-Host "Type" $bulkType "exists" -foreground "Green"
+        Write-Host "Type" $bulkType "exists" -Foreground Green
         foreach ($column in $columns) {
             $sbCol = New-Object -TypeName "System.Text.StringBuilder"
             $typeColumn = $table.Rows | Where-Object ColumnName -eq $column.name
             
             if (!$typeColumn) {
                 $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] does not exit!"
-                Write-Host $msg -foreground "Red"
+                Write-Host $msg -Foreground Red
                 [void]$errorSummary.AppendLine($msg)
                 continue
             }
@@ -460,13 +460,13 @@ function ValidateBulkType([String] $bulkType, $columns) {
             if ($column.type -ne $typeColumn.Datatype) { 
                 [void]$sbCol.Append('  Type(' + $column.type + '):NOK ')
                 $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different datatype! (type:" + $typeColumn.Datatype + " VS scope:" + $column.type + ")"
-                Write-Host $msg -foreground "Red"
+                Write-Host $msg -Foreground Red
                 [void]$errorSummary.AppendLine($msg)
             } 
             else { 
                 [void]$sbCol.Append('  Type(' + $column.type + '):OK ')
             }
-            
+
             $colMaxLen = $typeColumn.MaxLength
 
             if ($column.type -eq 'nvarchar' -or $column.type -eq 'nchar') {$colMaxLen = $colMaxLen / 2}
@@ -476,38 +476,38 @@ function ValidateBulkType([String] $bulkType, $columns) {
             if ($column.size -ne $colMaxLen) {
                 [void]$sbCol.Append('  Size(' + $column.size + '):NOK ') 
                 $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different data size!(type:" + $colMaxLen + " VS scope:" + $column.size + ")"
-                Write-Host $msg -foreground "Red"
+                Write-Host $msg -Foreground Red
                 [void]$errorSummary.AppendLine($msg)
             }
             else { 
                 [void]$sbCol.Append('  Size(' + $column.size + '):OK ')
             }
-                            
+
             if ($column.null) {
                 if ($column.null -ne $typeColumn.IsNullable) { 
                     [void]$sbCol.Append('  Nullable(' + $column.null + '):NOK ')
                     $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different IsNullable! (type:" + $typeColumn.IsNullable + " VS scope:" + $column.null + ")"
-                    Write-Host $msg -foreground "Red"
+                    Write-Host $msg -Foreground Red
                     [void]$errorSummary.AppendLine($msg) 
-                } 
+                }
                 else { 
                     [void]$sbCol.Append('  Nullable(' + $column.null + '):OK ')
-                }                    
+                }
             }
-            
+
             $sbColString = $sbCol.ToString()
-            
+
             if ($sbColString -match 'NOK') { 
-                Write-Host $sbColString -ForegroundColor Red 
+                Write-Host $sbColString -ForegroundColor Red
             } 
             else { 
-                Write-Host $sbColString -ForegroundColor Green 
+                Write-Host $sbColString -ForegroundColor Green
             }
         }
     }
     if ($count -eq 0) {
         $msg = "WARNING: Type " + $bulkType + " IS MISSING!"
-        Write-Host $msg -foreground Red
+        Write-Host $msg -Foreground Red
         [void]$errorSummary.AppendLine($msg)
     }
 }
@@ -522,11 +522,11 @@ function DetectTrackingTableLeftovers() {
         $datatable.Load($result)
 
         if (($datatable.FullTableName).Count -eq 0) { 
-            Write-Host "There are no Tracking Table leftovers" -foreground "Green"  
+            Write-Host "There are no Tracking Table leftovers" -Foreground Green
         }
         else {
             foreach ($leftover in $datatable) {
-                Write-Host "WARNING: Tracking Table" $leftover.FullTableName "should be a leftover." -foreground "yellow"
+                Write-Host "WARNING: Tracking Table" $leftover.FullTableName "should be a leftover." -Foreground Yellow
                 $deleteStatement = "Drop Table " + $leftover.FullTableName + ";"
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO")
@@ -540,7 +540,7 @@ function DetectTrackingTableLeftovers() {
             
                 foreach ($provision_marker_leftover2 in $provision_marker_leftovers2) {
                     $deleteStatement = "DELETE FROM [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = 0 and [object_id] = " + $provision_marker_leftover2.object_id + " --" + $leftover.TABLE_NAME
-                    Write-Host "WARNING: [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = 0 and [object_id] = " $provision_marker_leftover2.object_id "("  $leftover.TABLE_NAME ") should be a leftover." -foreground "yellow"
+                    Write-Host "WARNING: [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = 0 and [object_id] = " $provision_marker_leftover2.object_id "("  $leftover.TABLE_NAME ") should be a leftover." -Foreground Yellow
                     [void]$runnableScript.AppendLine($deleteStatement)
                     [void]$runnableScript.AppendLine("GO")
                 }
@@ -568,11 +568,11 @@ function DetectTriggerLeftovers() {
         $datatable.Load($result)
 
         if (($datatable.Column1).Count -eq 0) { 
-            Write-Host "There are no Trigger leftovers" -foreground "Green"  
+            Write-Host "There are no Trigger leftovers" -Foreground Green
         }
         else {
             foreach ($leftover in $datatable.Column1) {
-                Write-Host "WARNING: Trigger" $leftover "should be a leftover." -foreground "yellow"             
+                Write-Host "WARNING: Trigger" $leftover "should be a leftover." -Foreground Yellow
                 $deleteStatement = "Drop Trigger " + $leftover + ";"
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO")
@@ -599,11 +599,11 @@ function DetectProcedureLeftovers() {
         $datatable.Load($result)
 
         if (($datatable.Column1).Count -eq 0) { 
-            Write-Host "There are no Procedure leftovers" -foreground "Green"  
+            Write-Host "There are no Procedure leftovers" -Foreground Green
         }
         else {
             foreach ($leftover in $datatable.Column1) {
-                Write-Host "WARNING: Procedure" $leftover "should be a leftover." -foreground "yellow"             
+                Write-Host "WARNING: Procedure" $leftover "should be a leftover." -Foreground Yellow
                 $deleteStatement = "Drop Procedure " + $leftover + ";"
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO") 
@@ -612,7 +612,7 @@ function DetectProcedureLeftovers() {
     }
     Catch {
         Write-Host DetectProcedureLeftovers exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     } 
 }
 
@@ -631,11 +631,11 @@ function DetectBulkTypeLeftovers() {
         $datatable.Load($result)
 
         if (($datatable.Type).Count -eq 0) { 
-            Write-Host "There are no Bulk Type leftovers" -foreground "Green"  
+            Write-Host "There are no Bulk Type leftovers" -Foreground Green
         }
         else {
             foreach ($leftover in $datatable.Type) {
-                Write-Host "WARNING: Bulk Type" $leftover "should be a leftover." -foreground "yellow"             
+                Write-Host "WARNING: Bulk Type" $leftover "should be a leftover." -Foreground Yellow
                 $deleteStatement = "Drop Type " + $leftover + ";"
                 [void]$runnableScript.AppendLine($deleteStatement)
                 [void]$runnableScript.AppendLine("GO") 
@@ -644,7 +644,7 @@ function DetectBulkTypeLeftovers() {
     }
     Catch {
         Write-Host DetectBulkTypeLeftovers exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     } 
 }
 
@@ -670,12 +670,12 @@ function ValidateFKDependencies([Array] $userTables) {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "WARNING: Missing tables in the sync group due to FK references:" 
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
             [void]$errorSummary.AppendLine($msg)
 
             foreach ($fkrow in $datatable) {
                 $msg = "- The " + $fkrow.FKName + " in " + $fkrow.TableName + " needs " + $fkrow.ParentTableName
-                Write-Host $msg -foreground Yellow
+                Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
         }
@@ -685,7 +685,7 @@ function ValidateFKDependencies([Array] $userTables) {
     }
     Catch {
         Write-Host ValidateFKDependencies exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -705,12 +705,12 @@ function ValidateProvisionMarker {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "WARNING: ValidateProvisionMarker found some possible issues with:"
-            Write-Host $msg -foreground Yellow
+            Write-Host $msg -Foreground Yellow
             [void]$errorSummary.AppendLine($msg)
          
             foreach ($row in $datatable) {
                 $msg = "- " + $row.TableName + " | " + $row.object_id + " | " + $row.owner_scope_local_id
-                Write-Host $msg -foreground Yellow
+                Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
         }
@@ -737,12 +737,12 @@ function ValidateCircularReferences {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "WARNING: ValidateCircularReferences found some circular references in this database:" 
-            Write-Host $msg -foreground Yellow
+            Write-Host $msg -Foreground Yellow
             [void]$errorSummary.AppendLine($msg)
 
             foreach ($row in $datatable) {
                 $msg = "- " + $row.Table1 + " | " + $row.Table2 + " | " + $row.FK1Name + " | " + $row.FK2Name
-                Write-Host $msg -foreground Yellow
+                Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
         }
@@ -752,7 +752,7 @@ function ValidateCircularReferences {
     }
     Catch {
         Write-Host ValidateCircularReferences exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -766,12 +766,12 @@ function ValidateTableNames {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "INFO: ValidateTableNames found some tables names in multiple schemas in this database:" 
-            Write-Host $msg -foreground Yellow
+            Write-Host $msg -Foreground Yellow
             [void]$errorSummary.AppendLine($msg)
 
             foreach ($row in $datatable) {
                 $msg = "- " + $row.TableName + " seems to exist in multiple schemas!" 
-                Write-Host $msg -foreground Yellow
+                Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
         }
@@ -781,7 +781,7 @@ function ValidateTableNames {
     }
     Catch {
         Write-Host ValidateTableNames exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -798,12 +798,12 @@ function ValidateObjectNames {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "WARNING: ValidateObjectNames found some issues:" 
-            Write-Host $msg -foreground Yellow
+            Write-Host $msg -Foreground Yellow
             [void]$errorSummary.AppendLine($msg)
          
             foreach ($row in $datatable) {
                 $msg = "- [" + $row.table_schema + "].[" + $row.table_name + "].[" + $row.column_name + "]"
-                Write-Host $msg -foreground Yellow
+                Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
         }
@@ -813,7 +813,7 @@ function ValidateObjectNames {
     }
     Catch {
         Write-Host ValidateObjectNames exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -834,7 +834,7 @@ function DetectProvisioningIssues {
 
     foreach ($extraTrackingTable in $datatable) {
         $msg = "WARNING: " + $extraTrackingTable.TrackingTable + " exists but the corresponding user table does not exist! this maybe preventing provisioning/re-provisioning!"
-        Write-Host $msg -foreground Red
+        Write-Host $msg -Foreground Red
         [void]$errorSummary.AppendLine($msg) 
     }
 }
@@ -849,12 +849,12 @@ function DetectComputedColumns {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "INFO: Computed columns detected (they cannot be part of sync schema):" 
-            Write-Host $msg -foreground Yellow
+            Write-Host $msg -Foreground Yellow
             [void]$errorSummary.AppendLine($msg)
          
             foreach ($row in $datatable) {
                 $msg = "- [" + $row.SchemaName + "].[" + $row.TableName + "].[" + $row.ColumnName + "]"
-                Write-Host $msg -foreground Yellow
+                Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
         }
@@ -864,7 +864,7 @@ function DetectComputedColumns {
     }
     Catch {
         Write-Host ValidateObjectNames exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red   
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -923,7 +923,7 @@ function GetUIHistory {
         AND ud.[server] = '" + $Server + "' AND ud.[database] = '" + $Database + "')
         SELECT TOP(20) [completionTime],SyncGroupName,OperationResult,Seconds,Upload,UploadFailed AS UpFailed,Download,DownloadFailed AS DFailed,Error
         FROM UIHistory_CTE ORDER BY [completionTime] DESC"
- 
+
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object 'System.Data.DataTable'
@@ -931,7 +931,7 @@ function GetUIHistory {
 
         if ($datatable.Rows.Count -gt 0) {
             $msg = "UI History:" 
-            Write-Host $msg -foreground White
+            Write-Host $msg -Foreground White
             $datatable | Format-Table -Wrap -AutoSize
             $top = $datatable | Group-Object -Property SyncGroupName | ForEach-Object {$_ | Select-Object -ExpandProperty Group | Select-Object -First 1}
             $shouldDump = $top | Where-Object { $_.OperationResult -like '*Failure*' }
@@ -945,17 +945,17 @@ function GetUIHistory {
     Catch {
         Write-Host GetUIHistory exception:
         Write-Host $_.Exception.Message -ForegroundColor Red   
-    }    
+    }
 }
 
 function SendAnonymousUsageData {
-    Try {           
+    Try {
         #Despite computername and username will be used to calculate a hash string, this will keep you anonymous but allow us to identify multiple runs from the same user
         $StringBuilderHash = New-Object System.Text.StringBuilder
         [System.Security.Cryptography.HashAlgorithm]::Create("MD5").ComputeHash([System.Text.Encoding]::UTF8.GetBytes($env:computername + $env:username))| ForEach-Object {
             [Void]$StringBuilderHash.Append($_.ToString("x2"))
         }
-        
+
         $body = New-Object PSObject `
             | Add-Member -PassThru NoteProperty name 'Microsoft.ApplicationInsights.Event' `
             | Add-Member -PassThru NoteProperty time $([System.dateTime]::UtcNow.ToString('o')) `
@@ -981,7 +981,7 @@ function ValidateSyncDB {
     Try {
         $SyncDbConnection = New-Object System.Data.SqlClient.SQLConnection
         $SyncDbConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $SyncDbServer, $SyncDbDatabase, $SyncDbUser, $SyncDbPassword)
-        
+
         Write-Host Connecting to SyncDB $SyncDbServer"/"$SyncDbDatabase
         Try {
             $SyncDbConnection.Open()
@@ -991,10 +991,10 @@ function ValidateSyncDB {
             Test-NetConnection $SyncDbServer -Port 1433
             Break
         }
-        
+
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
-        
+
         $query = "select [name] from sys.schemas where name in ('dss','TaskHosting')" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
@@ -1002,19 +1002,19 @@ function ValidateSyncDB {
         $datatable.Load($result)
 
         if (($datatable.Rows | Where-Object {$_.name -eq "dss"} | Measure-Object).Count -gt 0) { 
-            Write-Host "dss schema exists" -foreground White 
+            Write-Host "dss schema exists" -Foreground White 
         }
         else {
             $msg = "WARNING: dss schema IS MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
-        
+
         if (($datatable.Rows | Where-Object {$_.name -eq "TaskHosting"} | Measure-Object).Count -gt 0) { 
-            Write-Host "TaskHosting schema exists" -foreground White
+            Write-Host "TaskHosting schema exists" -Foreground White
         }
         else {
             $msg = "WARNING: TaskHosting schema IS MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $query = "select schema_name(schema_id) as [name], count(*) as 'Count' from sys.tables
@@ -1027,20 +1027,20 @@ function ValidateSyncDB {
 
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
         if ($spCount.Count -gt 0) {
-            Write-Host "dss" $spCount.Count "tables found" -foreground White
+            Write-Host "dss" $spCount.Count "tables found" -Foreground White
         }
         else {
             $msg = "WARNING: dss tables are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
-        
+
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
         if ($spCount.Count -gt 0) {
-            Write-Host "TaskHosting" $spCount.Count "tables found" -foreground White
+            Write-Host "TaskHosting" $spCount.Count "tables found" -Foreground White
         }
         else {
             $msg = "WARNING: TaskHosting tables are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $query = "select schema_name(schema_id) as [name], count(*) as 'Count' from sys.procedures
@@ -1053,20 +1053,20 @@ function ValidateSyncDB {
 
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
         if ($spCount.Count -gt 0) { 
-            Write-Host "dss" $spCount.Count "stored procedures found" -foreground White
+            Write-Host "dss" $spCount.Count "stored procedures found" -Foreground White
         }
         else {
             $msg = "WARNING: dss stored procedures are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
-        
+
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
         if ($spCount.Count -gt 0) {
-            Write-Host "TaskHosting" $spCount.Count "stored procedures found" -foreground White
+            Write-Host "TaskHosting" $spCount.Count "stored procedures found" -Foreground White
         }
         else {
             $msg = "WARNING: TaskHosting stored procedures are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $query = "select schema_name(schema_id) as [name], count(*) as 'Count'
@@ -1079,20 +1079,20 @@ function ValidateSyncDB {
 
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
         if ($spCount.Count -gt 0) { 
-            Write-Host "dss" $spCount.Count "types found" -foreground White
+            Write-Host "dss" $spCount.Count "types found" -Foreground White
         }
         else {
             $msg = "WARNING: dss types are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
-        
+
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
         if ($spCount.Count -gt 0) {
-            Write-Host "TaskHosting" $spCount.Count "types found" -foreground White
+            Write-Host "TaskHosting" $spCount.Count "types found" -Foreground White
         }
         else {
             $msg = "WARNING: TaskHosting types are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $query = "select schema_name(schema_id) as [name], count(*) as 'Count'
@@ -1106,20 +1106,20 @@ function ValidateSyncDB {
 
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "dss"}
         if ($spCount.Count -gt 0) {
-            Write-Host "dss" $spCount.Count "functions found" -foreground White
+            Write-Host "dss" $spCount.Count "functions found" -Foreground White
         }
         else {
             $msg = "WARNING: dss functions are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
-        
+
         $spCount = $datatable.Rows | Where-Object {$_.name -eq "TaskHosting"}
         if ($spCount.Count -gt 0) {
-            Write-Host "TaskHosting" $spCount.Count "functions found" -foreground White
+            Write-Host "TaskHosting" $spCount.Count "functions found" -Foreground White
         }
         else {
             $msg = "WARNING: TaskHosting functions are MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $query = "select name from sys.sysusers where name in ('##MS_SyncAccount##','DataSync_reader','DataSync_executor','DataSync_admin')" 
@@ -1128,28 +1128,28 @@ function ValidateSyncDB {
         $datatable = new-object 'System.Data.DataTable'
         $datatable.Load($result)
 
-        if (($datatable.Rows | Where-Object {$_.name -eq "##MS_SyncAccount##"} | Measure-Object).Count -gt 0) { Write-Host "##MS_SyncAccount## exists" -foreground White }
+        if (($datatable.Rows | Where-Object {$_.name -eq "##MS_SyncAccount##"} | Measure-Object).Count -gt 0) { Write-Host "##MS_SyncAccount## exists" -Foreground White }
         else {
             $msg = "WARNING: ##MS_SyncAccount## IS MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
-        
-        if (($datatable.Rows | Where-Object {$_.name -eq "DataSync_reader"} | Measure-Object).Count -gt 0) { Write-Host "DataSync_reader exists" -foreground White }
+
+        if (($datatable.Rows | Where-Object {$_.name -eq "DataSync_reader"} | Measure-Object).Count -gt 0) { Write-Host "DataSync_reader exists" -Foreground White }
         else {
             $msg = "WARNING: DataSync_reader IS MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
-        
-        if (($datatable.Rows | Where-Object {$_.name -eq "DataSync_executor"} | Measure-Object).Count -gt 0) { Write-Host "DataSync_executor exists" -foreground White }
+
+        if (($datatable.Rows | Where-Object {$_.name -eq "DataSync_executor"} | Measure-Object).Count -gt 0) { Write-Host "DataSync_executor exists" -Foreground White }
         else {
             $msg = "WARNING: DataSync_executor IS MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
         
-        if (($datatable.Rows | Where-Object {$_.name -eq "DataSync_admin"} | Measure-Object).Count -gt 0) { Write-Host "DataSync_admin exists" -foreground White }
+        if (($datatable.Rows | Where-Object {$_.name -eq "DataSync_admin"} | Measure-Object).Count -gt 0) { Write-Host "DataSync_admin exists" -Foreground White }
         else {
             $msg = "WARNING: DataSync_admin IS MISSING!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $query = "select count(*) as 'Count' from sys.symmetric_keys where name like 'DataSyncEncryptionKey%'" 
@@ -1160,11 +1160,11 @@ function ValidateSyncDB {
 
         $keyCount = $datatable.Rows
         if ($keyCount.Count -gt 0) {
-            Write-Host $keyCount.Count "DataSyncEncryptionKey found" -foreground White
+            Write-Host $keyCount.Count "DataSyncEncryptionKey found" -Foreground White
         }
         else {
             $msg = "WARNING: no DataSyncEncryptionKeys were found!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $query = "select count(*) as 'Count' from sys.certificates where name like 'DataSyncEncryptionCertificate%'" 
@@ -1175,11 +1175,11 @@ function ValidateSyncDB {
 
         $keyCount = $datatable.Rows
         if ($keyCount.Count -gt 0) {
-            Write-Host $keyCount.Count "DataSyncEncryptionCertificate found" -foreground White
+            Write-Host $keyCount.Count "DataSyncEncryptionCertificate found" -Foreground White
         }
         else {
             $msg = "WARNING: no DataSyncEncryptionCertificates were found!"
-            Write-Host $msg -foreground Red
+            Write-Host $msg -Foreground Red
         }
 
         $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[syncgroup]"
@@ -1225,10 +1225,10 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName) {
             Test-NetConnection $SyncDbServer -Port 1433
             Break
         }
-        
+
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
-        
+
         $query = "SELECT [schema_description] FROM [dss].[syncgroup] WHERE [schema_description] IS NOT NULL AND [name] = '" + $syncGoupName + "'" 
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
@@ -1307,7 +1307,7 @@ function GetIndexes($table) {
         $datatable.Load($result)
         if ($datatable.Rows.Count -gt 0) {
             $msg = "Indexes for " + $table + ":"
-            Write-Host $msg -foreground Green         
+            Write-Host $msg -Foreground Green
             $datatable | Format-Table -Wrap -AutoSize 
         }
     }
@@ -1328,7 +1328,7 @@ function ValidateDSSMember() {
 
         $SyncDbConnection = New-Object System.Data.SqlClient.SQLConnection
         $SyncDbConnection.ConnectionString = [string]::Format("Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;", $SyncDbServer, $SyncDbDatabase, $SyncDbUser, $SyncDbPassword)
-        
+
         Write-Host Connecting to SyncDB $SyncDbServer"/"$SyncDbDatabase
         Try {
             $SyncDbConnection.Open()
@@ -1338,12 +1338,12 @@ function ValidateDSSMember() {
             Test-NetConnection $SyncDbServer -Port 1433
             Break
         }
-        
+
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
 
         Write-Host Getting scopes in SyncDB for this member database...
-        
+
         $SyncDbCommand.CommandText = "SELECT m.[scopename]
         ,sg.name as SyncGroupName
         ,CAST(sg.schema_description as nvarchar(max)) as SchemaDescription
@@ -1368,11 +1368,11 @@ function ValidateDSSMember() {
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTable = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTable.Load($SyncDbMembersResult)
-        
+
         Write-Host $SyncDbMembersDataTable.Rows.Count members found in this sync metadata database
         $SyncDbMembersDataTable.Rows | Sort-Object -Property scopename | Select-Object scopename, SyncGroupName, MemberName, SyncDirection, State, HubState, JobId, Messages | Format-Table -Wrap -AutoSize
         $scopesList = $SyncDbMembersDataTable.Rows | Select-Object -ExpandProperty scopename
-        
+
         $shouldMonitor = $SyncDbMembersDataTable.Rows | Where-Object { `
                 $_.State.Equals('Provisioning') `
                 -or $_.State.Equals('SyncInProgress') `
@@ -1393,23 +1393,13 @@ function ValidateDSSMember() {
             $allJobIds = "'$(($SyncDbMembersDataTable.Rows | Select-Object -ExpandProperty JobId | Where-Object { $_.ToString() -ne '' }) -join "','")'"
             $SyncDbCommand.CommandText = "select job.[JobId]
             ,job.[IsCancelled]
-            --,job.[InitialInsertTimeUTC]
             ,job.[JobType]
             ,job.[TaskCount]
             ,job.[CompletedTaskCount]
-            --,job.[TracingId]
-            --,m.[JobId]
             ,m.[MessageId]
             ,m.[MessageType]
-            --,m.[InitialInsertTimeUTC]
-            --,m.[InsertTimeUTC]
-            --,m.[UpdateTimeUTC]
             ,m.[ExecTimes]
             ,m.[ResetTimes]
-            --,m.[Version]
-            --,m.[TracingId]
-            --,m.[QueueId]
-            --,m.[WorkerId] 
             from [TaskHosting].[Job] job 
             left outer join [TaskHosting].[MessageQueue] m on job.JobId = m.JobId
             where job.JobId IN (" + $allJobIds + ")"
@@ -1453,7 +1443,7 @@ function ValidateDSSMember() {
         Catch {
             Write-Host $_.Exception.Message -ForegroundColor Red
         }
-        
+
         ### Database Validations ###
         ValidateCircularReferences
         ValidateTableNames
@@ -1481,13 +1471,13 @@ function ValidateDSSMember() {
                 Write-Host
                 Write-Host "Validating scope " $scope.scope_config_id
                 if ($scope.sync_scope_name -notin $scopesList) {
-                    Write-Host "WARNING:" [DataSync].[scope_config_dss].[config_id] $scope.scope_config_id "should be a leftover." -foreground "yellow"  
-                    Write-Host "WARNING:" [DataSync].[scope_info_dss].[scope_local_id] $scope.scope_local_id "should be a leftover." -foreground "yellow"  
-                
+                    Write-Host "WARNING:" [DataSync].[scope_config_dss].[config_id] $scope.scope_config_id "should be a leftover." -Foreground Yellow  
+                    Write-Host "WARNING:" [DataSync].[scope_info_dss].[scope_local_id] $scope.scope_local_id "should be a leftover." -Foreground Yellow  
+
                     $deleteStatement = "DELETE FROM [DataSync].[scope_config_dss] WHERE [config_id] = '" + $scope.scope_config_id + "'"
                     [void]$runnableScript.AppendLine($deleteStatement)
                     [void]$runnableScript.AppendLine("GO")
-                    
+
                     $deleteStatement = "DELETE FROM [DataSync].[scope_info_dss] WHERE [scope_local_id] = '" + $scope.scope_local_id + "'" 
                     [void]$runnableScript.AppendLine($deleteStatement)
                     [void]$runnableScript.AppendLine("GO")
@@ -1500,7 +1490,7 @@ function ValidateDSSMember() {
 
                     foreach ($provision_marker_leftover in $provision_marker_leftovers) {
                         $deleteStatement = "DELETE FROM [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = " + $scope.scope_local_id + " and [object_id] = " + $provision_marker_leftover.object_id + " --" + $provision_marker_leftover.TableName
-                        Write-Host "WARNING: [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = " $scope.scope_local_id  " and [object_id] = " $provision_marker_leftover.object_id " (" $provision_marker_leftover.TableName ") should be a leftover." -foreground "yellow"
+                        Write-Host "WARNING: [DataSync].[provision_marker_dss] WHERE [owner_scope_local_id] = " $scope.scope_local_id  " and [object_id] = " $provision_marker_leftover.object_id " (" $provision_marker_leftover.TableName ") should be a leftover." -Foreground Yellow
                         [void]$runnableScript.AppendLine($deleteStatement)
                         [void]$runnableScript.AppendLine("GO")
                     }
@@ -1528,12 +1518,12 @@ function ValidateDSSMember() {
                     foreach ($table in $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter) {
                         #Tracking Tables
                         ValidateTrackingTable($table.TrackingTable)
-                    
-                        ##Triggers   
+
+                        ##Triggers
                         ValidateTrigger($table.InsTrig)
                         ValidateTrigger($table.UpdTrig)
                         ValidateTrigger($table.DelTrig)
-                    
+
                         ## Procedures
                         if ($table.SelChngProc) { ValidateSP($table.SelChngProc) }
                         if ($table.SelRowProc) { ValidateSP($table.SelRowProc) }
@@ -1561,28 +1551,28 @@ function ValidateDSSMember() {
         }
         Catch {
             Write-Host $_.Exception.Message -ForegroundColor Red
-        } 
-        
+        }
+
         ### Detect Leftovers ###
         DetectTrackingTableLeftovers
         DetectTriggerLeftovers
         DetectProcedureLeftovers
         DetectBulkTypeLeftovers
-        
+
         ### Validations ###
         ValidateProvisionMarker
 
         if ($runnableScript.Length -gt 0) {
             $dumpScript = New-Object -TypeName 'System.Text.StringBuilder'
-            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")  
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
             [void]$dumpScript.AppendLine(" --LEFTOVERS CLEANUP SCRIPT : START")
             [void]$dumpScript.AppendLine(" --ONLY applicable when this database is not being used by any other sync group in other regions and/or subscription")
             [void]$dumpScript.AppendLine(" --AND Data Sync Health Checker was able to access the right Sync Metadata Database")    
-            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")  
-            [void]$dumpScript.AppendLine($runnableScript.ToString())                                                                                                                           
-            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")  
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
+            [void]$dumpScript.AppendLine($runnableScript.ToString())
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
             [void]$dumpScript.AppendLine(" --LEFTOVERS CLEANUP SCRIPT : END")
-            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")              
+            [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
             ($dumpScript.ToString()) | Out-File -filepath ('.\' + $Server + '_' + $Database + '_leftovers.sql')
         }
         else {
@@ -1592,10 +1582,10 @@ function ValidateDSSMember() {
 
         if ($errorSummary.Length -gt 0) {
             Write-Host
-            Write-Host "*******************************************" -foreground Red  
-            Write-Host "             WARNINGS SUMMARY" -foreground Red
-            Write-Host "*******************************************" -foreground Red  
-            Write-Host $errorSummary.ToString() -foreground Red
+            Write-Host "*******************************************" -Foreground Red  
+            Write-Host "             WARNINGS SUMMARY" -Foreground Red
+            Write-Host "*******************************************" -Foreground Red  
+            Write-Host $errorSummary.ToString() -Foreground Red
             Write-Host
         }
         else {
@@ -1608,11 +1598,11 @@ function ValidateDSSMember() {
             Write-Host Closing connecting to SyncDb...
             $SyncDbConnection.Close()
         }
-        
+
         if ($MemberConnection) {
             Write-Host Closing connecting to Member...
             $MemberConnection.Close()
-        }        
+        }
     }
 }
 
@@ -1637,7 +1627,7 @@ function Monitor() {
         Write-Host $_.Exception.Message -ForegroundColor Red
         Test-NetConnection $HubServer -Port 1433
         Break
-    }  
+    }
 
     $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
     $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
@@ -1659,7 +1649,7 @@ function Monitor() {
     $datatable = new-object 'System.Data.DataTable'
     $datatable.Load($result)
     $lasttime = $datatable.Rows[0].now
-    
+
     while ((Get-Date) -le $monitorUntil) {
         $lastTimeString = ([DateTime]$lasttime).toString("yyyy-MM-dd HH:mm:ss")
         $lastTimeString = $lastTimeString.Replace('.', ':')
@@ -1791,7 +1781,7 @@ Try {
             ValidateSyncDB
             if ($DumpMetadataSchemasForSyncGroup -ne '') {
                 DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
-            }   
+            }
         }
     }
     Finally {
