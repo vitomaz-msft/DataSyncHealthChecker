@@ -57,4 +57,5 @@ $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[Tabl
 
 ```
 5 – Run it.
+
 6 – A folder with all the result files will be opened after the script completes, please send us all the files.
