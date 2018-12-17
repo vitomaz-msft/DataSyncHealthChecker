@@ -16,9 +16,12 @@ $HubDatabase = ''
 $HubUser = ''
 $HubPassword = ''
 
-# Member credentials (Azure SQL DB or SQL Server, only SQL Authentication is supported)
+# Member credentials (Azure SQL DB or SQL Server)
 $MemberServer = ''
 $MemberDatabase = ''
+# set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (you can leave MemberUser and MemberPassword empty)
+# set MemberUseWindowsAuthentication to $false in case you wish to use SQL authentication and set the MemberUser and MemberPassword below
+$MemberUseWindowsAuthentication = $true
 $MemberUser = ''
 $MemberPassword = ''
 
@@ -719,7 +722,7 @@ function ValidateProvisionMarker {
     }
     Catch {
         Write-Host ValidateProvisionMarker exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red    
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -943,7 +946,7 @@ function GetUIHistory {
     }
     Catch {
         Write-Host GetUIHistory exception:
-        Write-Host $_.Exception.Message -ForegroundColor Red   
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -964,7 +967,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5' `
+                    | Add-Member -PassThru NoteProperty name '5.1' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1413,7 +1416,12 @@ function ValidateDSSMember() {
         Write-Host
 
         $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
-        $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $Server, $Database, $MbrUser, $MbrPassword)
+        if($MbrUseWindowsAuthentication){
+            $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;Integrated Security=true;MultipleActiveResultSets=False;Connection Timeout=30;", $Server, $Database)
+        }
+        else{
+            $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $Server, $Database, $MbrUser, $MbrPassword)
+        }
 
         Write-Host
         Write-Host Connecting to Hub/Member $Server"/"$Database
@@ -1435,7 +1443,7 @@ function ValidateDSSMember() {
             $MemberCommand.CommandText = "SELECT compatibility_level AS [CompatLevel], collation_name AS [Collation], snapshot_isolation_state_desc AS [Snapshot], @@VERSION AS [Version] FROM sys.databases WHERE name = DB_NAME();"
             $MemberResult = $MemberCommand.ExecuteReader()
             $MemberVersion = new-object 'System.Data.DataTable'
-            $MemberVersion.Load($MemberResult)                         
+            $MemberVersion.Load($MemberResult)
             $MemberVersion.Rows | Format-Table -Wrap -AutoSize
             Write-Host
         }
@@ -1544,7 +1552,7 @@ function ValidateDSSMember() {
                     }
 
                     #Constraints
-                    ValidateFKDependencies ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select-Object -ExpandProperty GlobalName)        
+                    ValidateFKDependencies ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select-Object -ExpandProperty GlobalName)
                 }
             }
         }
@@ -1581,9 +1589,9 @@ function ValidateDSSMember() {
 
         if ($errorSummary.Length -gt 0) {
             Write-Host
-            Write-Host "*******************************************" -Foreground Red  
+            Write-Host "*******************************************" -Foreground Red
             Write-Host "             WARNINGS SUMMARY" -Foreground Red
-            Write-Host "*******************************************" -Foreground Red  
+            Write-Host "*******************************************" -Foreground Red
             Write-Host $errorSummary.ToString() -Foreground Red
             Write-Host
         }
@@ -1629,7 +1637,13 @@ function Monitor() {
     }
 
     $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
-    $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
+    if($MemberUseWindowsAuthentication){
+        $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;Integrated Security=true;MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase)
+    }
+    else{
+        $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
+    }
+
     $MemberCommand = New-Object System.Data.SQLClient.SQLCommand
     $MemberCommand.Connection = $MemberConnection
 
@@ -1751,7 +1765,7 @@ Try {
         Start-Transcript -Path $file
 
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5 Results"          -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v5.1 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
@@ -1789,12 +1803,13 @@ Try {
         } 
         Catch [System.InvalidOperationException] {}
         $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
-        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file    
+        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
     }
 
     #Hub
     $Server = $HubServer
-    $Database = $HubDatabase 
+    $Database = $HubDatabase
+    $MbrUseWindowsAuthentication = $false
     $MbrUser = $HubUser
     $MbrPassword = $HubPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
@@ -1813,13 +1828,14 @@ Try {
             } 
             Catch [System.InvalidOperationException] {}
             $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
-            (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file        
+            (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
         }
     }
 
     #Member
     $Server = $MemberServer
     $Database = $MemberDatabase 
+    $MbrUseWindowsAuthentication = $MemberUseWindowsAuthentication
     $MbrUser = $MemberUser
     $MbrPassword = $MemberPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
