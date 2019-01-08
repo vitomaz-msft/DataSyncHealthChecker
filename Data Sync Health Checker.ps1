@@ -1188,21 +1188,21 @@ function ValidateSyncDB {
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableA = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableA.Load($SyncDbMembersResult)
-        Write-Host $SyncDbMembersDataTableA.row.Count sync groups        
+        Write-Host $SyncDbMembersDataTableA.rows.Count sync groups        
         $SyncDbMembersDataTableA.Rows | Format-Table -Wrap -AutoSize
 
         $SyncDbCommand.CommandText = "SELECT [name] AS SyncGroupMembers FROM [dss].[syncgroupmember]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableB = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableB.Load($SyncDbMembersResult)
-        Write-Host $SyncDbMembersDataTableB.row.Count sync group members
+        Write-Host $SyncDbMembersDataTableB.rows.Count sync group members
         $SyncDbMembersDataTableB.Rows | Format-Table -Wrap -AutoSize
         
         $SyncDbCommand.CommandText = "SELECT [name] as SyncAgents FROM [dss].[agent]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableC = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableC.Load($SyncDbMembersResult)
-        Write-Host $SyncDbMembersDataTableC.row.Count sync agents
+        Write-Host $SyncDbMembersDataTableC.rows.Count sync agents
         $SyncDbMembersDataTableC.Rows | Format-Table -Wrap -AutoSize
     } 
     Catch {
@@ -1756,6 +1756,13 @@ function Monitor() {
     Write-Host "Monitoring finished" -ForegroundColor Green
 }
 
+function FilterTranscript(){
+    $lineNumber = (Select-String -Path $file -Pattern 'Transcript started|La transcripción ha comenzado').LineNumber
+    if($lineNumber){
+        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+    }
+}
+
 Try {
 
     Clear-Host
@@ -1805,8 +1812,7 @@ Try {
             Stop-Transcript | Out-Null
         } 
         Catch [System.InvalidOperationException] {}
-        $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
-        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+        FilterTranscript
     }
 
     #Hub
@@ -1830,8 +1836,7 @@ Try {
                 Stop-Transcript | Out-Null 
             } 
             Catch [System.InvalidOperationException] {}
-            $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
-            (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+            FilterTranscript
         }
     }
 
@@ -1856,8 +1861,7 @@ Try {
                 Stop-Transcript | Out-Null 
             } 
             Catch [System.InvalidOperationException] {}
-            $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
-            (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+            FilterTranscript
         }
     }
 
@@ -1873,8 +1877,7 @@ Try {
                 Stop-Transcript | Out-Null 
             } 
             Catch [System.InvalidOperationException] {}
-            $lineNumber = (Select-String -Path $file -Pattern 'Transcript started').LineNumber
-            (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+            FilterTranscript
         }
     }
 }
