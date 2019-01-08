@@ -967,7 +967,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.1' `
+                    | Add-Member -PassThru NoteProperty name '5.2' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1184,30 +1184,33 @@ function ValidateSyncDB {
             Write-Host $msg -Foreground Red
         }
 
-        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[syncgroup]"
+        $SyncDbCommand.CommandText = "SELECT [name] AS SyncGroups FROM [dss].[syncgroup]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableA = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableA.Load($SyncDbMembersResult)
-        Write-Host $SyncDbMembersDataTableA.C sync groups
+        Write-Host $SyncDbMembersDataTableA.row.Count sync groups        
+        $SyncDbMembersDataTableA.Rows | Format-Table -Wrap -AutoSize
 
-        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[syncgroupmember]"
+        $SyncDbCommand.CommandText = "SELECT [name] AS SyncGroupMembers FROM [dss].[syncgroupmember]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableB = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableB.Load($SyncDbMembersResult)
-        Write-Host $SyncDbMembersDataTableB.C sync group members
+        Write-Host $SyncDbMembersDataTableB.row.Count sync group members
+        $SyncDbMembersDataTableB.Rows | Format-Table -Wrap -AutoSize
         
-        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[agent]"
+        $SyncDbCommand.CommandText = "SELECT [name] as SyncAgents FROM [dss].[agent]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableC = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableC.Load($SyncDbMembersResult)
-        Write-Host $SyncDbMembersDataTableC.C sync agents
+        Write-Host $SyncDbMembersDataTableC.row.Count sync agents
+        $SyncDbMembersDataTableC.Rows | Format-Table -Wrap -AutoSize
     } 
     Catch {
         Write-Host $_.Exception.Message -ForegroundColor Red
     }
     Finally {
         if ($SyncDbConnection) {
-            Write-Host Closing connecting to SyncDb...
+            Write-Host Closing connection to SyncDb...
             $SyncDbConnection.Close()
         }
     }
@@ -1294,7 +1297,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName) {
     }
     Finally {        
         if ($SyncDbConnection) {
-            Write-Host Closing connecting to SyncDb...
+            Write-Host Closing connection to SyncDb...
             $SyncDbConnection.Close()
         }        
     }
@@ -1602,12 +1605,12 @@ function ValidateDSSMember() {
     }
     Finally {
         if ($SyncDbConnection) {
-            Write-Host Closing connecting to SyncDb...
+            Write-Host Closing connection to SyncDb...
             $SyncDbConnection.Close()
         }
 
         if ($MemberConnection) {
-            Write-Host Closing connecting to Member...
+            Write-Host Closing connection to Member...
             $MemberConnection.Close()
         }
     }
@@ -1765,7 +1768,7 @@ Try {
         Start-Transcript -Path $file
 
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5.1 Results" -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v5.2 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
