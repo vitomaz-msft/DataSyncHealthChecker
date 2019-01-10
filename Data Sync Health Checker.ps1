@@ -261,17 +261,17 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
         $sbQuery = New-Object -TypeName "System.Text.StringBuilder"
         $sbDeleteQuery = New-Object -TypeName "System.Text.StringBuilder"
 
-        [void]$sbQuery.Append("SELECT COUNT(*) AS C FROM DataSync.")
+        [void]$sbQuery.Append("SELECT COUNT(*) AS C FROM DataSync.[")
         [void]$sbQuery.Append($tableNameWithoutSchema)
-        [void]$sbQuery.Append("_dss_tracking t WITH (NOLOCK) WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
+        [void]$sbQuery.Append("_dss_tracking] t WITH (NOLOCK) WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
         [void]$sbQuery.Append($table)
         [void]$sbQuery.Append(" s WITH (NOLOCK) WHERE ")
 
-        [void]$sbDeleteQuery.Append("DELETE DataSync.")
+        [void]$sbDeleteQuery.Append("DELETE DataSync.[")
         [void]$sbDeleteQuery.Append($tableNameWithoutSchema)
-        [void]$sbDeleteQuery.Append("_dss_tracking FROM DataSync.")
+        [void]$sbDeleteQuery.Append("_dss_tracking] FROM DataSync.[")
         [void]$sbDeleteQuery.Append($tableNameWithoutSchema)
-        [void]$sbDeleteQuery.Append("_dss_tracking t WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
+        [void]$sbDeleteQuery.Append("_dss_tracking] t WHERE sync_row_is_tombstone=0 AND NOT EXISTS (SELECT * FROM ")
         [void]$sbDeleteQuery.Append($table)
         [void]$sbDeleteQuery.Append(" s WHERE ")
 
@@ -967,7 +967,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.2' `
+                    | Add-Member -PassThru NoteProperty name '5.3' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1757,7 +1757,7 @@ function Monitor() {
 }
 
 function FilterTranscript(){
-    $lineNumber = (Select-String -Path $file -Pattern 'Transcript started|La transcripción ha comenzado').LineNumber
+    $lineNumber = (Select-String -Path $file -Pattern '..TranscriptStart..').LineNumber
     if($lineNumber){
         (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
     }
@@ -1773,9 +1773,9 @@ Try {
     Try {
         $file = '.\_SyncDB_Log.txt'
         Start-Transcript -Path $file
-
+        Write-Host '..TranscriptStart..'
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5.2 Results" -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v5.3 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
@@ -1826,6 +1826,7 @@ Try {
         Try {
             $file = '.\_Hub_Log.txt'
             Start-Transcript -Path $file
+            Write-Host '..TranscriptStart..'
             Write-Host
             Write-Host ***************** Validating Hub ********************** -ForegroundColor Green
             Write-Host 
@@ -1851,6 +1852,7 @@ Try {
         Try {
             $file = '.\_Member_Log.txt'
             Start-Transcript -Path $file
+            Write-Host '..TranscriptStart..'
             Write-Host
             Write-Host ***************** Validating Member ********************** -ForegroundColor Green
             Write-Host
@@ -1870,6 +1872,7 @@ Try {
         Try {
             $file = '.\_Monitoring_Log.txt'
             Start-Transcript -Path $file
+            Write-Host '..TranscriptStart..'
             Monitor
         }
         Finally {
