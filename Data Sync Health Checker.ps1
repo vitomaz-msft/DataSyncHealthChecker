@@ -413,9 +413,8 @@ function ValidateSP([String] $SP) {
             $datatable = new-object 'System.Data.DataTable'
             $datatable.Load($result)
             if ($datatable.Rows.Count -gt 0) {
-                $SPname = $SP.Replace("[", "").Replace("]", "").Replace('.', '_')
                 $xmlResult = $datatable.Text
-                $xmlResult | Out-File -filepath ('.\' + $Server.Replace('.', '_') + '_' + $Database + '_' + $SPname + '.txt')
+                $xmlResult | Out-File -filepath ('.\' + (SanitizeString $Server) + '_' + (SanitizeString $Database) + '_' + (SanitizeString $SP) + '.txt')
             }
         }
     }
@@ -967,7 +966,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.3' `
+                    | Add-Member -PassThru NoteProperty name '5.4' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1242,7 +1241,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName) {
         if ($datatable.Rows.Count -gt 0) {
             $xmlResult = $datatable.Rows[0].schema_description
             if ($xmlResult) {
-                $xmlResult | Out-File -filepath ('.\' + $syncGoupName + '_schema_description.xml')
+                $xmlResult | Out-File -filepath ('.\' + (SanitizeString $syncGoupName) + '_schema_description.xml')
             }
         }
 
@@ -1254,7 +1253,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName) {
         if ($datatable.Rows.Count -gt 0) {
             $xmlResult = $datatable.Rows[0].ocsschemadefinition
             if ($xmlResult) {
-                $xmlResult | Out-File -filepath ('.\' + $syncGoupName + '_ocsschemadefinition.xml')
+                $xmlResult | Out-File -filepath ('.\' + (SanitizeString $syncGoupName) + '_ocsschemadefinition.xml')
             }
         }
 
@@ -1270,7 +1269,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName) {
         if ($datatable.Rows.Count -gt 0) {
             $xmlResult = $datatable.Rows[0].db_schema
             if ($xmlResult) {
-                $xmlResult | Out-File -filepath ('.\' + ($datatable.Rows[0].HubServer).Replace('.', '_') + '_' + $datatable.Rows[0].HubDatabase + '_db_schema.xml')
+                $xmlResult | Out-File -filepath ('.\' + (SanitizeString $datatable.Rows[0].HubServer) + '_' + (SanitizeString $datatable.Rows[0].HubDatabase) + '_db_schema.xml')
             }
         }
 
@@ -1287,7 +1286,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName) {
             foreach ($databse in $datatable.Rows) {
                 $xmlResult = $databse.db_schema
                 if ($xmlResult) {
-                    $xmlResult | Out-File -filepath ('.\' + ($databse.MemberServer).Replace('.', '_') + '_' + $databse.MemberDatabase + '_db_schema.xml')
+                    $xmlResult | Out-File -filepath ('.\' + (SanitizeString $databse.MemberServer) + '_' + (SanitizeString $databse.MemberDatabase) + '_db_schema.xml')
                 }
             }
         }
@@ -1319,6 +1318,10 @@ function GetIndexes($table) {
     Catch {
         Write-Host $_.Exception.Message -ForegroundColor Red
     }
+}
+
+function SanitizeString([String] $param){
+    return ($param.Replace('\', '_').Replace("[", "").Replace("]", "").Replace('.', '_'))
 }
 
 function ValidateDSSMember() {
@@ -1583,7 +1586,7 @@ function ValidateDSSMember() {
             [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
             [void]$dumpScript.AppendLine(" --LEFTOVERS CLEANUP SCRIPT : END")
             [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
-            ($dumpScript.ToString()) | Out-File -filepath ('.\' + $Server + '_' + $Database + '_leftovers.sql')
+            ($dumpScript.ToString()) | Out-File -filepath ('.\' + (SanitizeString $Server) + '_' + (SanitizeString $Database) + '_leftovers.sql')
         }
         else {
             Write-Host
@@ -1775,7 +1778,7 @@ Try {
         Start-Transcript -Path $file
         Write-Host '..TranscriptStart..'
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5.3 Results" -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v5.4 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
