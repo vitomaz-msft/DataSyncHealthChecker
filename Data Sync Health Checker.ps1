@@ -966,7 +966,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.4' `
+                    | Add-Member -PassThru NoteProperty name '5.5' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1321,7 +1321,7 @@ function GetIndexes($table) {
 }
 
 function SanitizeString([String] $param){
-    return ($param.Replace('\', '_').Replace("[", "").Replace("]", "").Replace('.', '_'))
+    return ($param.Replace('\', '_').Replace('/', '_').Replace("[", "").Replace("]", "").Replace('.', '_').Replace(':', '_').Replace(',', '_'))
 }
 
 function ValidateDSSMember() {
@@ -1349,6 +1349,18 @@ function ValidateDSSMember() {
 
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
+
+        Write-Host Validating Server and Database names exist in SyncDB
+
+        $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[userdatabase] WHERE server = '" + $Server + "' and [database] = '" + $Database + "'"
+        $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
+        $SyncDbMembersDataTable = new-object 'System.Data.DataTable'
+        $SyncDbMembersDataTable.Load($SyncDbMembersResult)
+
+        if($SyncDbMembersDataTable.Rows[0].C -eq 0){
+            Write-Host ERROR: $Server/$Database was not found in [dss].[userdatabase] -ForegroundColor Red
+            return;
+        }
 
         Write-Host Getting scopes in SyncDB for this member database...
 
@@ -1778,7 +1790,7 @@ Try {
         Start-Transcript -Path $file
         Write-Host '..TranscriptStart..'
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5.4 Results" -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v5.5 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
