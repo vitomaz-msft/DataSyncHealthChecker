@@ -19,11 +19,11 @@ $HubPassword = ''
 # Member credentials (Azure SQL DB or SQL Server)
 $MemberServer = ''
 $MemberDatabase = ''
-# set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (you can leave MemberUser and MemberPassword empty)
-# set MemberUseWindowsAuthentication to $false in case you wish to use SQL authentication and set the MemberUser and MemberPassword below
-$MemberUseWindowsAuthentication = $true
 $MemberUser = ''
 $MemberPassword = ''
+# set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (MemberUser and MemberPassword will be ignored)
+$MemberUseWindowsAuthentication = $false
+
 
 ## Health checks
 $HealthChecksEnabled = $true  #Set as $true or $false

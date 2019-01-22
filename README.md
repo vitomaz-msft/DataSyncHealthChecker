@@ -28,11 +28,14 @@ $HubDatabase = ''
 $HubUser = ''
 $HubPassword = ''
 
-# Member credentials (Azure SQL DB or SQL Server, only SQL Authentication is supported)
+# Member credentials (Azure SQL DB or SQL Server)
 $MemberServer = ''
 $MemberDatabase = ''
 $MemberUser = ''
 $MemberPassword = ''
+# set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (MemberUser and MemberPassword will be ignored)
+$MemberUseWindowsAuthentication = $false
+
 
 ## Health checks
 $HealthChecksEnabled = $true  #Set as $true or $false
