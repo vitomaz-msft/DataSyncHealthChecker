@@ -377,46 +377,96 @@ function ValidateTrigger([String] $trigger) {
 }
 
 function ValidateSP([String] $SP) {
+    Try {
+        if (![string]::IsNullOrEmpty($SP)) { 
+            [void]$allSPsList.Add($SP)
+        }
 
-    if (![string]::IsNullOrEmpty($SP)) { 
-        [void]$allSPsList.Add($SP)
-    }
+        $query = "SELECT COUNT(*) AS C FROM sys.procedures p INNER JOIN sys.schemas s ON p.schema_id = s.schema_id WHERE '['+s.name+'].['+ p.name+']' = N'" + $SP + "'"
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $table = new-object 'System.Data.DataTable'
+        $table.Load($result)
+        $count = $table | Select-Object C -ExpandProperty C
 
-    $query = "
-    SELECT COUNT(*) AS C 
-    FROM sys.procedures p
-    INNER JOIN sys.schemas s ON p.schema_id = s.schema_id 
-    WHERE '['+s.name+'].['+ p.name+']' = '" + $SP + "'"
+        if ($count -eq 1) {
+            Write-Host "Procedure" $SP "exists" -Foreground Green
 
-    $MemberCommand.CommandText = $query
-    $result = $MemberCommand.ExecuteReader()
-    $table = new-object 'System.Data.DataTable'
-    $table.Load($result)
-    $count = $table | Select-Object C -ExpandProperty C
-
-    if ($count -eq 1) {
-        Write-Host "Procedure" $SP "exists" -Foreground Green 
-    }
-
-    if ($count -eq 0) {
-        $msg = "WARNING: Procedure " + $SP + " IS MISSING!"
-        Write-Host $msg -Foreground Red
-        [void]$errorSummary.AppendLine($msg)
-    }
-
-    if ($DumpMetadataObjectsForTable) {
-        $tableNameWithoutSchema = ($DumpMetadataObjectsForTable.Replace("[", "").Replace("]", "").Split('.'))[1] + '_dss'
-        if ($SP.IndexOf($tableNameWithoutSchema) -ne -1) {
             $query = "sp_helptext '" + $SP + "'" 
             $MemberCommand.CommandText = $query
             $result = $MemberCommand.ExecuteReader()
-            $datatable = new-object 'System.Data.DataTable'
-            $datatable.Load($result)
-            if ($datatable.Rows.Count -gt 0) {
-                $xmlResult = $datatable.Text
+            $sphelptextDataTable = new-object 'System.Data.DataTable'
+            $sphelptextDataTable.Load($result)
+
+            #DumpObject
+            $tableNameWithoutSchema = ($DumpMetadataObjectsForTable.Replace("[", "").Replace("]", "").Split('.'))[1] + '_dss'
+            if ($DumpMetadataObjectsForTable -and ($SP.IndexOf($tableNameWithoutSchema) -ne -1)) {
+                $xmlResult = $sphelptextDataTable.Text
                 $xmlResult | Out-File -filepath ('.\' + (SanitizeString $Server) + '_' + (SanitizeString $Database) + '_' + (SanitizeString $SP) + '.txt')
             }
+
+            #provision marker validations
+            $objectId = ([string[]] $sphelptextDataTable.Text) | Where-Object { $_ -match 'object_id' } | Select-Object -First 1
+
+            if ($objectId) {
+                $objectId = $objectId.Replace('WHERE [object_id] =', '').Trim()
+
+                $query = "select COUNT(object_id) as C from sys.tables where object_id = " + $objectId 
+                $MemberCommand.CommandText = $query
+                $result = $MemberCommand.ExecuteReader()
+                $datatable = new-object 'System.Data.DataTable'
+                $datatable.Load($result)
+                if ($datatable.Rows[0].C -eq 0) {
+                    $msg = "WARNING: Table with object_id " + $objectId + " was not found!"
+                    Write-Host $msg -Foreground Red
+                    [void]$errorSummary.AppendLine($msg)
+                }
+                else {
+                    $msg = " - Found table with object_id " + $objectId
+                    Write-Host $msg -Foreground Green
+                }
+
+                $query = "SELECT [owner_scope_local_id] FROM [DataSync].[provision_marker_dss] WHERE object_id = " + $objectId
+                $MemberCommand.CommandText = $query
+                $result = $MemberCommand.ExecuteReader()
+                $datatable = new-object 'System.Data.DataTable'
+                $datatable.Load($result)
+
+                if ($datatable.Rows| Where-Object { $_.owner_scope_local_id -eq 0 }) {
+                    $msg = " - Found owner_scope_local_id 0 for object_id " + $objectId
+                    Write-Host $msg -Foreground Green
+                }
+                else {
+                    $msg = "WARNING: owner_scope_local_id 0 was not found for object_id " + $objectId
+                    Write-Host $msg -Foreground Red
+                    [void]$errorSummary.AppendLine($msg)
+                }
+
+                $owner_scope_local_id = ([string[]] $sphelptextDataTable.Text) | Where-Object { $_ -match 'owner_scope_local_id' -and $_ -notmatch '0'  }
+                if ($owner_scope_local_id) {
+                    $owner_scope_local_id = $owner_scope_local_id.Replace('AND [owner_scope_local_id] =', '').Trim()
+
+                    if ($datatable.Rows| Where-Object { $_.owner_scope_local_id -eq $owner_scope_local_id }) {
+                        $msg = " - Found owner_scope_local_id " + $owner_scope_local_id + " for object_id " + $objectId
+                        Write-Host $msg -Foreground Green
+                    }
+                    else {
+                        $msg = "WARNING: owner_scope_local_id " + $owner_scope_local_id + " was not found for object_id " + $objectId
+                        Write-Host $msg -Foreground Red
+                        [void]$errorSummary.AppendLine($msg)
+                    }
+                }
+            }
         }
+        if ($count -eq 0) {
+            $msg = "WARNING: Procedure " + $SP + " IS MISSING!"
+            Write-Host $msg -Foreground Red
+            [void]$errorSummary.AppendLine($msg)
+        }
+    }
+    Catch {
+        Write-Host ValidateSP exception:
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -966,7 +1016,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.5' `
+                    | Add-Member -PassThru NoteProperty name '5.6' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
@@ -1320,7 +1370,7 @@ function GetIndexes($table) {
     }
 }
 
-function SanitizeString([String] $param){
+function SanitizeString([String] $param) {
     return ($param.Replace('\', '_').Replace('/', '_').Replace("[", "").Replace("]", "").Replace('.', '_').Replace(':', '_').Replace(',', '_'))
 }
 
@@ -1357,7 +1407,7 @@ function ValidateDSSMember() {
         $SyncDbMembersDataTable = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTable.Load($SyncDbMembersResult)
 
-        if($SyncDbMembersDataTable.Rows[0].C -eq 0){
+        if ($SyncDbMembersDataTable.Rows[0].C -eq 0) {
             Write-Host ERROR: $Server/$Database was not found in [dss].[userdatabase] -ForegroundColor Red
             return;
         }
@@ -1434,10 +1484,10 @@ function ValidateDSSMember() {
         Write-Host
 
         $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
-        if($MbrUseWindowsAuthentication){
+        if ($MbrUseWindowsAuthentication) {
             $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;Integrated Security=true;MultipleActiveResultSets=False;Connection Timeout=30;", $Server, $Database)
         }
-        else{
+        else {
             $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $Server, $Database, $MbrUser, $MbrPassword)
         }
 
@@ -1655,10 +1705,10 @@ function Monitor() {
     }
 
     $MemberConnection = New-Object System.Data.SqlClient.SQLConnection
-    if($MemberUseWindowsAuthentication){
+    if ($MemberUseWindowsAuthentication) {
         $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;Integrated Security=true;MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase)
     }
-    else{
+    else {
         $MemberConnection.ConnectionString = [string]::Format("Server={0};Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Connection Timeout=30;", $MemberServer, $MemberDatabase, $MemberUser, $MemberPassword)
     }
 
@@ -1771,9 +1821,9 @@ function Monitor() {
     Write-Host "Monitoring finished" -ForegroundColor Green
 }
 
-function FilterTranscript(){
+function FilterTranscript() {
     $lineNumber = (Select-String -Path $file -Pattern '..TranscriptStart..').LineNumber
-    if($lineNumber){
+    if ($lineNumber) {
         (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
     }
 }
@@ -1790,7 +1840,7 @@ Try {
         Start-Transcript -Path $file
         Write-Host '..TranscriptStart..'
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5.5 Results" -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v5.6 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
