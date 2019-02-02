@@ -5,7 +5,25 @@
 
 $parameters = $args[0]
 
-## Databases and credentials
+$parameters['SyncDbServer']
+$parameters['SyncDbDatabase']
+$parameters['SyncDbUser']
+$parameters['SyncDbPassword']
+$parameters['HubServer']
+$parameters['HubDatabase']
+$parameters['HubUser']
+$parameters['HubPassword']
+$parameters['MemberServer']
+$parameters['MemberDatabase']
+$parameters['MemberUser']
+$parameters['MemberPassword']
+$parameters['MemberUseWindowsAuthentication']
+$parameters['HealthChecksEnabled']
+$parameters['MonitoringMode']
+$parameters['MonitoringIntervalInSeconds']
+$parameters['MonitoringDurationInMinutes']
+
+ ## Databases and credentials
 # Sync metadata database credentials (Only SQL Authentication is supported)
 $SyncDbServer = $parameters['SyncDbServer']
 $SyncDbDatabase = $parameters['SyncDbDatabase']
