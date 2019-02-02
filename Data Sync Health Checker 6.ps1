@@ -1881,17 +1881,19 @@ Try {
         Write-Host
         Write-Host Configuration: -ForegroundColor Green
         Write-Host PowerShell $PSVersionTable.PSVersion
-        Write-Host HealthChecksEnabled $HealthChecksEnabled
-        Write-Host MonitoringMode $MonitoringMode
-        Write-Host MonitoringIntervalInSeconds $MonitoringIntervalInSeconds
-        Write-Host MonitoringDurationInMinutes $MonitoringDurationInMinutes
-        Write-Host SendAnonymousUsageData $SendAnonymousUsageData
-        Write-Host ExtendedValidationsEnabledForHub $ExtendedValidationsEnabledForHub
-        Write-Host ExtendedValidationsEnabledForMember $ExtendedValidationsEnabledForMember
-        Write-Host ExtendedValidationsTableFilter $ExtendedValidationsTableFilter
-        Write-Host ExtendedValidationsCommandTimeout $ExtendedValidationsCommandTimeout
-        Write-Host DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
-        Write-Host DumpMetadataObjectsForTable = '$DumpMetadataObjectsForTable'
+        Write-Host
+        Write-Host "Parameters you can change:"
+        Write-Host HealthChecksEnabled = $HealthChecksEnabled
+        Write-Host MonitoringMode = $MonitoringMode
+        Write-Host MonitoringIntervalInSeconds = $MonitoringIntervalInSeconds
+        Write-Host MonitoringDurationInMinutes = $MonitoringDurationInMinutes
+        Write-Host SendAnonymousUsageData = $SendAnonymousUsageData
+        Write-Host ExtendedValidationsEnabledForHub = $ExtendedValidationsEnabledForHub
+        Write-Host ExtendedValidationsEnabledForMember = $ExtendedValidationsEnabledForMember
+        Write-Host ExtendedValidationsTableFilter = $ExtendedValidationsTableFilter
+        Write-Host ExtendedValidationsCommandTimeout = $ExtendedValidationsCommandTimeout
+        Write-Host DumpMetadataSchemasForSyncGroup = $DumpMetadataSchemasForSyncGroup
+        Write-Host DumpMetadataObjectsForTable = $DumpMetadataObjectsForTable
 
         if ($SendAnonymousUsageData) {
             SendAnonymousUsageData 
