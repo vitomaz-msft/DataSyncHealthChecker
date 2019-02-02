@@ -1879,10 +1879,10 @@ Try {
         Write-Host "        Data Sync Health Checker v5.6 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
-        Write-Host Configuration: -ForegroundColor Green
+        Write-Host "Configuration:" -ForegroundColor Green
         Write-Host PowerShell $PSVersionTable.PSVersion
         Write-Host
-        Write-Host "Parameters you can change:"
+        Write-Host "Parameters you can change:" -ForegroundColor Green
         Write-Host HealthChecksEnabled = $HealthChecksEnabled
         Write-Host MonitoringMode = $MonitoringMode
         Write-Host MonitoringIntervalInSeconds = $MonitoringIntervalInSeconds
