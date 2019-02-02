@@ -46,7 +46,88 @@ $SendAnonymousUsageData = $true
 $DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
 $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
 
+#####################################################################################################
+# Parameter region when Invoke-Command -ScriptBlock is used
+$parameters = $args[0]
+if ($null -ne $parameters) {
+    ## Databases and credentials
+    # Sync metadata database credentials (Only SQL Authentication is supported)
+    $SyncDbServer = $parameters['SyncDbServer']
+    $SyncDbDatabase = $parameters['SyncDbDatabase']
+    $SyncDbUser = $parameters['SyncDbUser']
+    $SyncDbPassword = $parameters['SyncDbPassword']
 
+    # Hub credentials (Only SQL Authentication is supported)
+    $HubServer = $parameters['HubServer']
+    $HubDatabase = $parameters['HubDatabase']
+    $HubUser = $parameters['HubUser']
+    $HubPassword = $parameters['HubPassword']
+
+    # Member credentials (Azure SQL DB or SQL Server)
+    $MemberServer = $parameters['MemberServer']
+    $MemberDatabase = $parameters['MemberDatabase']
+    $MemberUser = $parameters['MemberUser']
+    $MemberPassword = $parameters['MemberPassword']
+    # set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (MemberUser and MemberPassword will be ignored)
+    $MemberUseWindowsAuthentication = $false
+    if ($parameters['MemberUseWindowsAuthentication']) {
+        $MemberUseWindowsAuthentication = $parameters['MemberUseWindowsAuthentication']
+    }
+
+    ## Health checks
+    $HealthChecksEnabled = $true  #Set as $true or $false
+    if ($null -ne $parameters['HealthChecksEnabled']) {
+        $HealthChecksEnabled = $parameters['HealthChecksEnabled']
+    }
+
+    ## Monitoring
+    $MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
+    if ($null -ne $parameters['MonitoringMode']) {
+        $MonitoringMode = $parameters['MonitoringMode']
+    }
+    $MonitoringIntervalInSeconds = 20
+    if ($null -ne $parameters['MonitoringIntervalInSeconds']) {
+        $MonitoringIntervalInSeconds = $parameters['MonitoringIntervalInSeconds']
+    }
+    $MonitoringDurationInMinutes = 2
+    if ($null -ne $parameters['MonitoringDurationInMinutes']) {
+        $MonitoringDurationInMinutes = $parameters['MonitoringDurationInMinutes']
+    }
+
+    ## Tracking Record Validations
+    # Set as "All" to validate all tables
+    # or pick the tables you need using '[dbo].[TableName1]','[dbo].[TableName2]'
+    $ExtendedValidationsTableFilter = @('All') 
+    if ($null -ne $parameters['ExtendedValidationsTableFilter']) {
+        $ExtendedValidationsTableFilter = $parameters['ExtendedValidationsTableFilter']
+    }
+    $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
+    if ($null -ne $parameters['ExtendedValidationsEnabledForHub']) {
+        $ExtendedValidationsEnabledForHub = $parameters['ExtendedValidationsEnabledForHub']
+    }
+    $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
+    if ($null -ne $parameters['ExtendedValidationsEnabledForMember']) {
+        $ExtendedValidationsEnabledForMember = $parameters['ExtendedValidationsEnabledForMember']
+    }
+    $ExtendedValidationsCommandTimeout = 900 #seconds
+    if ($null -ne $parameters['ExtendedValidationsCommandTimeout']) {
+        $ExtendedValidationsCommandTimeout = $parameters['ExtendedValidationsCommandTimeout']
+    }
+
+    ## Other
+    $SendAnonymousUsageData = $true
+    if ($null -ne $parameters['SendAnonymousUsageData']) {
+        $SendAnonymousUsageData = $parameters['SendAnonymousUsageData']
+    }
+    $DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
+    if ($null -ne $parameters['DumpMetadataSchemasForSyncGroup']) {
+        $DumpMetadataSchemasForSyncGroup = $parameters['DumpMetadataSchemasForSyncGroup']
+    }
+    $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
+    if ($null -ne $parameters['DumpMetadataObjectsForTable']) {
+        $DumpMetadataObjectsForTable = $parameters['DumpMetadataObjectsForTable']
+    }
+}
 #####################################################################################################
 
 function ValidateTablesVSLocalSchema([Array] $userTables) {
@@ -1016,10 +1097,13 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '5.6' `
+                    | Add-Member -PassThru NoteProperty name '6.0' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
-                        | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString() `
+                        | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
+                        | Add-Member -PassThru NoteProperty 'MonitoringIntervalInSeconds' $MonitoringIntervalInSeconds.ToString()`
+                        | Add-Member -PassThru NoteProperty 'MonitoringDurationInMinutes' $MonitoringDurationInMinutes.ToString()`
+                        | Add-Member -PassThru NoteProperty 'ExtendedValidationsCommandTimeout' $ExtendedValidationsCommandTimeout.ToString()`
                         | Add-Member -PassThru NoteProperty 'ExtendedValidationsEnabledForHub' $ExtendedValidationsEnabledForHub.ToString() `
                         | Add-Member -PassThru NoteProperty 'ExtendedValidationsEnabledForMember' $ExtendedValidationsEnabledForMember.ToString() )));
         $body = $body | ConvertTo-JSON -depth 5;
@@ -1840,29 +1924,39 @@ Try {
         Start-Transcript -Path $file
         Write-Host '..TranscriptStart..'
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v5.6 Results" -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v6.0 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
-        Write-Host Configuration: -ForegroundColor Green
+        Write-Host "Configuration:" -ForegroundColor Green
         Write-Host PowerShell $PSVersionTable.PSVersion
-        Write-Host HealthChecksEnabled $HealthChecksEnabled
-        Write-Host MonitoringMode $MonitoringMode
-        Write-Host MonitoringIntervalInSeconds $MonitoringIntervalInSeconds
-        Write-Host MonitoringDurationInMinutes $MonitoringDurationInMinutes
-        Write-Host SendAnonymousUsageData $SendAnonymousUsageData
-        Write-Host ExtendedValidationsEnabledForHub $ExtendedValidationsEnabledForHub
-        Write-Host ExtendedValidationsEnabledForMember $ExtendedValidationsEnabledForMember
-        Write-Host ExtendedValidationsTableFilter $ExtendedValidationsTableFilter
-        Write-Host ExtendedValidationsCommandTimeout $ExtendedValidationsCommandTimeout
-        Write-Host DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
-        Write-Host DumpMetadataObjectsForTable $DumpMetadataObjectsForTable
+        Write-Host
+        Write-Host "Databases:" -ForegroundColor Green
+        Write-Host SyncDbServer = $SyncDbServer
+        Write-Host SyncDbDatabase = $SyncDbDatabase
+        Write-Host HubServer = $HubServer
+        Write-Host HubDatabase = $HubDatabase
+        Write-Host MemberServer = $MemberServer
+        Write-Host MemberDatabase = $MemberDatabase
+        Write-Host
+        Write-Host "Parameters you can change:" -ForegroundColor Green
+        Write-Host HealthChecksEnabled = $HealthChecksEnabled
+        Write-Host MonitoringMode = $MonitoringMode
+        Write-Host MonitoringIntervalInSeconds = $MonitoringIntervalInSeconds
+        Write-Host MonitoringDurationInMinutes = $MonitoringDurationInMinutes
+        Write-Host SendAnonymousUsageData = $SendAnonymousUsageData
+        Write-Host ExtendedValidationsEnabledForHub = $ExtendedValidationsEnabledForHub
+        Write-Host ExtendedValidationsEnabledForMember = $ExtendedValidationsEnabledForMember
+        Write-Host ExtendedValidationsTableFilter = $ExtendedValidationsTableFilter
+        Write-Host ExtendedValidationsCommandTimeout = $ExtendedValidationsCommandTimeout
+        Write-Host DumpMetadataSchemasForSyncGroup = $DumpMetadataSchemasForSyncGroup
+        Write-Host DumpMetadataObjectsForTable = $DumpMetadataObjectsForTable
 
         if ($SendAnonymousUsageData) {
             SendAnonymousUsageData 
         }
 
         #SyncDB
-        if ($SyncDbServer -ne '' -and $SyncDbDatabase -ne '') {
+        if (($null -ne $SyncDbServer) -and ('' -ne $SyncDbServer) -and ($null -ne $SyncDbDatabase) -and ('' -ne $SyncDbDatabase)) {
             Write-Host
             Write-Host ***************** Validating Sync Metadata Database ********************** -ForegroundColor Green
             Write-Host 
@@ -1870,6 +1964,9 @@ Try {
             if ($DumpMetadataSchemasForSyncGroup -ne '') {
                 DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
             }
+        }
+        else {
+            Write-Host 'WARNING:SyncDbServer or SyncDbDatabase was not specified' -ForegroundColor Red 
         }
     }
     Finally {
@@ -1887,7 +1984,7 @@ Try {
     $MbrUser = $HubUser
     $MbrPassword = $HubPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
-    if ($HealthChecksEnabled -and $Server -ne '' -and $Database -ne '') {
+    if ($HealthChecksEnabled -and ($null -ne $Server) -and ($Server -ne '') -and ($null -ne $Database) -and ($Database -ne '')) {
         Try {
             $file = '.\_Hub_Log.txt'
             Start-Transcript -Path $file
@@ -1913,7 +2010,7 @@ Try {
     $MbrUser = $MemberUser
     $MbrPassword = $MemberPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
-    if ($HealthChecksEnabled -and $Server -ne '' -and $Database -ne '') {
+    if ($HealthChecksEnabled -and ($null -ne $Server) -and ($Server -ne '') -and ($null -ne $Database) -and ($Database -ne '')) {
         Try {
             $file = '.\_Member_Log.txt'
             Start-Transcript -Path $file
