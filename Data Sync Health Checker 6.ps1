@@ -1931,6 +1931,7 @@ Try {
         Write-Host SyncDbServer = $SyncDbServer
         Write-Host SyncDbDatabase = $SyncDbDatabase
         Write-Host HubServer = $HubServer
+        Write-Host HubDatabase = $HubDatabase
         Write-Host MemberServer = $MemberServer
         Write-Host MemberDatabase = $MemberDatabase
         Write-Host
