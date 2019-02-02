@@ -1954,6 +1954,9 @@ Try {
                 DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
             }
         }
+        else{
+            Write-Host 'WARNING:SyncDbServer or SyncDbDatabase was not specified' -ForegroundColor Red 
+        }
     }
     Finally {
         Try {
