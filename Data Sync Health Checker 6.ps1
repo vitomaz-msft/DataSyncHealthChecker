@@ -1891,7 +1891,7 @@ Try {
         Write-Host ExtendedValidationsTableFilter $ExtendedValidationsTableFilter
         Write-Host ExtendedValidationsCommandTimeout $ExtendedValidationsCommandTimeout
         Write-Host DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
-        Write-Host DumpMetadataObjectsForTable $DumpMetadataObjectsForTable
+        Write-Host DumpMetadataObjectsForTable = '$DumpMetadataObjectsForTable'
 
         if ($SendAnonymousUsageData) {
             SendAnonymousUsageData 
