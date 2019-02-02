@@ -3,8 +3,53 @@
 #FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 #WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-$parameters = $args[0]
+## Databases and credentials
+# Sync metadata database credentials (Only SQL Authentication is supported)
+$SyncDbServer = '.database.windows.net'
+$SyncDbDatabase = ''
+$SyncDbUser = ''
+$SyncDbPassword = ''
 
+# Hub credentials (Only SQL Authentication is supported)
+$HubServer = '.database.windows.net'
+$HubDatabase = ''
+$HubUser = ''
+$HubPassword = ''
+
+# Member credentials (Azure SQL DB or SQL Server)
+$MemberServer = ''
+$MemberDatabase = ''
+$MemberUser = ''
+$MemberPassword = ''
+# set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (MemberUser and MemberPassword will be ignored)
+$MemberUseWindowsAuthentication = $false
+
+
+## Health checks
+$HealthChecksEnabled = $true  #Set as $true or $false
+
+## Monitoring
+$MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
+$MonitoringIntervalInSeconds = 20
+$MonitoringDurationInMinutes = 2
+
+## Tracking Record Validations
+# Set as "All" to validate all tables
+# or pick the tables you need using '[dbo].[TableName1]','[dbo].[TableName2]'
+$ExtendedValidationsTableFilter = @('All') 
+$ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
+$ExtendedValidationsCommandTimeout = 900 #seconds
+
+## Other
+$SendAnonymousUsageData = $true
+$DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
+$DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
+
+#####################################################################################################
+# Parameter region when Invoke-Command -ScriptBlock is used
+$parameters = $args[0]
+if($null -ne $parameters){
  ## Databases and credentials
 # Sync metadata database credentials (Only SQL Authentication is supported)
 $SyncDbServer = $parameters['SyncDbServer']
@@ -82,7 +127,7 @@ $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[Tabl
 if($null -ne $parameters['DumpMetadataObjectsForTable']){
     $DumpMetadataObjectsForTable = $parameters['DumpMetadataObjectsForTable']
 }
-
+}
 #####################################################################################################
 
 function ValidateTablesVSLocalSchema([Array] $userTables) {
@@ -1894,16 +1939,13 @@ Try {
         Write-Host ExtendedValidationsCommandTimeout = $ExtendedValidationsCommandTimeout
         Write-Host DumpMetadataSchemasForSyncGroup = $DumpMetadataSchemasForSyncGroup
         Write-Host DumpMetadataObjectsForTable = $DumpMetadataObjectsForTable
-        Write-Host MonitoringMode = $MonitoringMode
-        Write-Host MonitoringIntervalInSeconds = $MonitoringIntervalInSeconds
-        Write-Host MonitoringDurationInMinutes = $MonitoringDurationInMinutes
 
         if ($SendAnonymousUsageData) {
             SendAnonymousUsageData 
         }
 
         #SyncDB
-        if ($SyncDbServer -ne '' -and $SyncDbDatabase -ne '') {
+        if (($null -ne $SyncDbServer) -and ('' -ne $SyncDbServer) -and ($null -ne $SyncDbDatabase) -and ('' -ne $SyncDbDatabase)) {
             Write-Host
             Write-Host ***************** Validating Sync Metadata Database ********************** -ForegroundColor Green
             Write-Host 
@@ -1928,7 +1970,7 @@ Try {
     $MbrUser = $HubUser
     $MbrPassword = $HubPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub 
-    if ($HealthChecksEnabled -and $Server -ne '' -and $Database -ne '') {
+    if ($HealthChecksEnabled -and ($null -ne $Server) -and ($Server -ne '') -and ($null -ne $Database) -and ($Database -ne '')) {
         Try {
             $file = '.\_Hub_Log.txt'
             Start-Transcript -Path $file
@@ -1954,7 +1996,7 @@ Try {
     $MbrUser = $MemberUser
     $MbrPassword = $MemberPassword
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
-    if ($HealthChecksEnabled -and $Server -ne '' -and $Database -ne '') {
+    if ($HealthChecksEnabled -and ($null -ne $Server) -and ($Server -ne '') -and ($null -ne $Database) -and ($Database -ne '')) {
         Try {
             $file = '.\_Member_Log.txt'
             Start-Transcript -Path $file
