@@ -31,21 +31,21 @@ if($parameters['MemberUseWindowsAuthentication']){
 
 ## Health checks
 $HealthChecksEnabled = $true  #Set as $true or $false
-if($parameters['HealthChecksEnabled']){
-    $HealthChecksEnabled = [bool]$parameters['HealthChecksEnabled']
+if($null -ne $parameters['HealthChecksEnabled']){
+    $HealthChecksEnabled = $parameters['HealthChecksEnabled']
 }
 
 ## Monitoring
 $MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
-if($parameters['MonitoringMode']){
+if($null -ne $parameters['MonitoringMode']){
     $MonitoringMode = $parameters['MonitoringMode']
 }
 $MonitoringIntervalInSeconds = 20
-if($parameters['MonitoringIntervalInSeconds']){
+if($null -ne $parameters['MonitoringIntervalInSeconds']){
     $MonitoringIntervalInSeconds = $parameters['MonitoringIntervalInSeconds']
 }
 $MonitoringDurationInMinutes = 2
-if($parameters['MonitoringDurationInMinutes']){
+if($null -ne $parameters['MonitoringDurationInMinutes']){
     $MonitoringDurationInMinutes = $parameters['MonitoringDurationInMinutes']
 }
 
@@ -53,33 +53,33 @@ if($parameters['MonitoringDurationInMinutes']){
 # Set as "All" to validate all tables
 # or pick the tables you need using '[dbo].[TableName1]','[dbo].[TableName2]'
 $ExtendedValidationsTableFilter = @('All') 
-if($parameters['ExtendedValidationsTableFilter']){
+if($null -ne $parameters['ExtendedValidationsTableFilter']){
     $ExtendedValidationsTableFilter = $parameters['ExtendedValidationsTableFilter']
 }
 $ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
-if($parameters['ExtendedValidationsEnabledForHub']){
+if($null -ne $parameters['ExtendedValidationsEnabledForHub']){
     $ExtendedValidationsEnabledForHub = $parameters['ExtendedValidationsEnabledForHub']
 }
 $ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
-if($parameters['ExtendedValidationsEnabledForMember']){
+if($null -ne $parameters['ExtendedValidationsEnabledForMember']){
     $ExtendedValidationsEnabledForMember = $parameters['ExtendedValidationsEnabledForMember']
 }
 $ExtendedValidationsCommandTimeout = 900 #seconds
-if($parameters['ExtendedValidationsCommandTimeout']){
+if($null -ne $parameters['ExtendedValidationsCommandTimeout']){
     $ExtendedValidationsCommandTimeout = $parameters['ExtendedValidationsCommandTimeout']
 }
 
 ## Other
 $SendAnonymousUsageData = $true
-if($parameters['SendAnonymousUsageData']){
+if($null -ne $parameters['SendAnonymousUsageData']){
     $SendAnonymousUsageData = $parameters['SendAnonymousUsageData']
 }
 $DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
-if($parameters['DumpMetadataSchemasForSyncGroup']){
+if($null -ne $parameters['DumpMetadataSchemasForSyncGroup']){
     $DumpMetadataSchemasForSyncGroup = $parameters['DumpMetadataSchemasForSyncGroup']
 }
 $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
-if($parameters['DumpMetadataObjectsForTable']){
+if($null -ne $parameters['DumpMetadataObjectsForTable']){
     $DumpMetadataObjectsForTable = $parameters['DumpMetadataObjectsForTable']
 }
 
