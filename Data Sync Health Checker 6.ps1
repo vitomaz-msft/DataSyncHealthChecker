@@ -51,6 +51,7 @@ if($parameters['MemberUseWindowsAuthentication']){
 $HealthChecksEnabled = $true  #Set as $true or $false
 if($parameters['HealthChecksEnabled']){
     $HealthChecksEnabled = $parameters['HealthChecksEnabled']
+    Write-Host $HealthChecksEnabled.GetType()
 }
 
 ## Monitoring
