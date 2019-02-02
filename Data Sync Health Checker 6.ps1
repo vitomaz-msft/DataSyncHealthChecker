@@ -1927,6 +1927,13 @@ Try {
         Write-Host "Configuration:" -ForegroundColor Green
         Write-Host PowerShell $PSVersionTable.PSVersion
         Write-Host
+        Write-Host "Databases:" -ForegroundColor Green
+        Write-Host SyncDbServer = $SyncDbServer
+        Write-Host SyncDbDatabase = $SyncDbDatabase
+        Write-Host HubServer = $HubServer
+        Write-Host MemberServer = $MemberServer
+        Write-Host MemberDatabase = $MemberDatabase
+        Write-Host
         Write-Host "Parameters you can change:" -ForegroundColor Green
         Write-Host HealthChecksEnabled = $HealthChecksEnabled
         Write-Host MonitoringMode = $MonitoringMode
