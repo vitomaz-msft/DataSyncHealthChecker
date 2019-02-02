@@ -24,30 +24,64 @@ $MemberDatabase = $parameters['MemberDatabase']
 $MemberUser = $parameters['MemberUser']
 $MemberPassword = $parameters['MemberPassword']
 # set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (MemberUser and MemberPassword will be ignored)
-$MemberUseWindowsAuthentication = $parameters['MemberUseWindowsAuthentication']
-
+$MemberUseWindowsAuthentication = $false
+if($parameters['MemberUseWindowsAuthentication']){
+    $HealthChecksEnabled = $parameters['MemberUseWindowsAuthentication']
+}
 
 ## Health checks
-$HealthChecksEnabled = $parameters['HealthChecksEnabled']  #Set as $true or $false
+$HealthChecksEnabled = $true  #Set as $true or $false
+if($parameters['HealthChecksEnabled']){
+    $HealthChecksEnabled = $parameters['HealthChecksEnabled']
+}
 
 ## Monitoring
-$MonitoringMode = $parameters['MonitoringMode']  #Set as AUTO, ENABLED or DISABLED
-$MonitoringIntervalInSeconds = $parameters['MonitoringIntervalInSeconds']
-$MonitoringDurationInMinutes = $parameters['MonitoringDurationInMinutes']
+$MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
+if($parameters['MonitoringMode']){
+    $HealthChecksEnabled = $parameters['MonitoringMode']
+}
+$MonitoringIntervalInSeconds = 20
+if($parameters['MonitoringIntervalInSeconds']){
+    $HealthChecksEnabled = $parameters['MonitoringIntervalInSeconds']
+}
+$MonitoringDurationInMinutes = 2
+if($parameters['MonitoringDurationInMinutes']){
+    $HealthChecksEnabled = $parameters['MonitoringDurationInMinutes']
+}
 
 ## Tracking Record Validations
 # Set as "All" to validate all tables
 # or pick the tables you need using '[dbo].[TableName1]','[dbo].[TableName2]'
-$ExtendedValidationsTableFilter = $parameters['ExtendedValidationsTableFilter'] 
-$ExtendedValidationsEnabledForHub = $parameters['ExtendedValidationsEnabledForHub']  #Attention, this may cause high I/O impact
-$ExtendedValidationsEnabledForMember = $parameters['ExtendedValidationsEnabledForMember']  #Attention, this may cause high I/O impact
-$ExtendedValidationsCommandTimeout = $parameters['ExtendedValidationsCommandTimeout'] #seconds
+$ExtendedValidationsTableFilter = @('All') 
+if($parameters['ExtendedValidationsTableFilter']){
+    $HealthChecksEnabled = $parameters['ExtendedValidationsTableFilter']
+}
+$ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
+if($parameters['ExtendedValidationsEnabledForHub']){
+    $HealthChecksEnabled = $parameters['ExtendedValidationsEnabledForHub']
+}
+$ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
+if($parameters['ExtendedValidationsEnabledForMember']){
+    $HealthChecksEnabled = $parameters['ExtendedValidationsEnabledForMember']
+}
+$ExtendedValidationsCommandTimeout = 900 #seconds
+if($parameters['ExtendedValidationsCommandTimeout']){
+    $HealthChecksEnabled = $parameters['ExtendedValidationsCommandTimeout']
+}
 
 ## Other
-$SendAnonymousUsageData = $parameters['SendAnonymousUsageData']
-$DumpMetadataSchemasForSyncGroup = $parameters['DumpMetadataSchemasForSyncGroup'] #leave empty for automatic detection
-$DumpMetadataObjectsForTable = $parameters['DumpMetadataObjectsForTable'] #needs to be formatted like [SchemaName].[TableName]
-
+$SendAnonymousUsageData = $true
+if($parameters['SendAnonymousUsageData']){
+    $HealthChecksEnabled = $parameters['SendAnonymousUsageData']
+}
+$DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
+if($parameters['DumpMetadataSchemasForSyncGroup']){
+    $HealthChecksEnabled = $parameters['DumpMetadataSchemasForSyncGroup']
+}
+$DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
+if($parameters['DumpMetadataObjectsForTable']){
+    $HealthChecksEnabled = $parameters['DumpMetadataObjectsForTable']
+}
 
 #####################################################################################################
 
