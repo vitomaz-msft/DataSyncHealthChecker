@@ -5,24 +5,6 @@
 
 $parameters = $args[0]
 
-Write-Host $parameters['SyncDbDatabase']
-Write-Host $parameters['SyncDbUser']
-Write-Host $parameters['SyncDbServer']
-Write-Host $parameters['SyncDbPassword']
-Write-Host $parameters['HubServer']
-Write-Host $parameters['HubDatabase']
-Write-Host $parameters['HubUser']
-Write-Host $parameters['HubPassword']
-Write-Host $parameters['MemberServer']
-Write-Host $parameters['MemberDatabase']
-Write-Host $parameters['MemberUser']
-Write-Host $parameters['MemberPassword']
-Write-Host $parameters['MemberUseWindowsAuthentication']
-Write-Host $parameters['HealthChecksEnabled']
-Write-Host $parameters['MonitoringMode']
-Write-Host $parameters['MonitoringIntervalInSeconds']
-Write-Host $parameters['MonitoringDurationInMinutes']
-
  ## Databases and credentials
 # Sync metadata database credentials (Only SQL Authentication is supported)
 $SyncDbServer = $parameters['SyncDbServer']
@@ -1897,6 +1879,24 @@ Try {
         Write-Host "        Data Sync Health Checker v5.6 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
+        Write-Host $parameters['SyncDbDatabase']
+Write-Host $parameters['SyncDbUser']
+Write-Host $parameters['SyncDbServer']
+Write-Host $parameters['SyncDbPassword']
+Write-Host $parameters['HubServer']
+Write-Host $parameters['HubDatabase']
+Write-Host $parameters['HubUser']
+Write-Host $parameters['HubPassword']
+Write-Host $parameters['MemberServer']
+Write-Host $parameters['MemberDatabase']
+Write-Host $parameters['MemberUser']
+Write-Host $parameters['MemberPassword']
+Write-Host $parameters['MemberUseWindowsAuthentication']
+Write-Host $parameters['HealthChecksEnabled']
+Write-Host $parameters['MonitoringMode']
+Write-Host $parameters['MonitoringIntervalInSeconds']
+Write-Host $parameters['MonitoringDurationInMinutes']
+Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
         Write-Host PowerShell $PSVersionTable.PSVersion
         Write-Host
