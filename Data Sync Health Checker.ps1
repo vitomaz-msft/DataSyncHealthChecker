@@ -1913,16 +1913,22 @@ function FilterTranscript() {
 }
 
 Try {
-
     Clear-Host
     $tempDir = $env:TEMP + '\DataSyncHealthChecker\' + [System.DateTime]::Now.ToString('yyyyMMddTHHmmss')
-    New-Item $tempDir -ItemType directory | Out-Null
-    Set-Location -Path $tempDir
-
+    $canWriteFiles = $true
     Try {
+        throw [System.IO.FileNotFoundException] "$file not found."
+        New-Item $tempDir -ItemType directory | Out-Null
+        Set-Location -Path $tempDir
         $file = '.\_SyncDB_Log.txt'
         Start-Transcript -Path $file
         Write-Host '..TranscriptStart..'
+    }
+    Catch {
+        $canWriteFiles = $false
+    }
+
+    Try {
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host "        Data Sync Health Checker v6.0 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
@@ -1970,11 +1976,13 @@ Try {
         }
     }
     Finally {
-        Try {
-            Stop-Transcript | Out-Null
-        } 
-        Catch [System.InvalidOperationException] {}
-        FilterTranscript
+        if ($canWriteFiles) {
+            Try {
+                Stop-Transcript | Out-Null
+            } 
+            Catch [System.InvalidOperationException] {}
+            FilterTranscript
+        }
     }
 
     #Hub
@@ -2047,5 +2055,7 @@ Try {
     }
 }
 Finally {
-    Invoke-Item $tempDir
+    if($canWriteFiles){
+        Invoke-Item $tempDir
+    }
 }
