@@ -1097,7 +1097,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.0' `
+                    | Add-Member -PassThru NoteProperty name '6.1' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1821,6 +1821,16 @@ function Monitor() {
 
         Write-Host "Monitoring ("$lastTimeString")..." -ForegroundColor Green
 
+        Try {
+            $os = Get-Ciminstance Win32_OperatingSystem
+            $FreePhysicalMemory = [math]::Round(($os.FreePhysicalMemory/1024),2)
+            $FreeVirtualMemory = [math]::Round(($os.FreeVirtualMemory/1024),2)
+            Write-Host "FreePhysicalMemory:" $FreePhysicalMemory "|" "FreeVirtualMemory:" $FreeVirtualMemory
+        }
+        Catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red            
+        }
+
         $query = "select o.name AS What
                       ,p.last_execution_time AS LastExecutionTime
                       , p.execution_count AS ExecutionCount
@@ -1930,7 +1940,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "        Data Sync Health Checker v6.0 Results" -ForegroundColor Green
+        Write-Host "        Data Sync Health Checker v6.1 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
