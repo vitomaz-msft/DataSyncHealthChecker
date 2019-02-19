@@ -1098,7 +1098,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.3' `
+                    | Add-Member -PassThru NoteProperty name '6.4' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1826,7 +1826,22 @@ function Monitor() {
             $os = Get-Ciminstance Win32_OperatingSystem
             $FreePhysicalMemory = [math]::Round(($os.FreePhysicalMemory/1024),2)
             $FreeVirtualMemory = [math]::Round(($os.FreeVirtualMemory/1024),2)
-            Write-Host "FreePhysicalMemory:" $FreePhysicalMemory "|" "FreeVirtualMemory:" $FreeVirtualMemory
+            Write-Host "FreePhysicalMemory:" $FreePhysicalMemory "|" "FreeVirtualMemory:" $FreeVirtualMemory -ForegroundColor Yellow
+        }
+        Catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red
+        }
+
+        Try{
+            $tempfolderfiles = [System.IO.Directory]::EnumerateFiles([Environment]::GetEnvironmentVariable("TEMP", "User"),"*.*","AllDirectories")
+            $batchFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "sync_" -and $_ -match ".batch"}).Count
+            $MATSFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "MATS_" }).Count
+            Write-Host Temp folder at user level - batch:$batchFiles MATS:$MATSFiles -ForegroundColor Yellow
+
+            $tempfolderfiles = [System.IO.Directory]::EnumerateFiles([Environment]::GetEnvironmentVariable("TEMP", "Machine"),"*.*","AllDirectories")
+            $batchFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "sync_" -and $_ -match ".batch"}).Count
+            $MATSFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "MATS_" }).Count
+            Write-Host Temp folder at machine level - batch:$batchFiles MATS:$MATSFiles -ForegroundColor Yellow
         }
         Catch {
             Write-Host $_.Exception.Message -ForegroundColor Red
@@ -1888,7 +1903,7 @@ function Monitor() {
         $datatable.Load($HubResult)
 
         if ($datatable.Rows.Count -gt 0) {
-            Write-Host "Hub Monitor (running) ("$lastTimeString"): new records:" -ForegroundColor Green
+            Write-Host "Hub Monitor (running commands) ("$lastTimeString"): new records:" -ForegroundColor Green
             Write-Host ($datatable | Format-Table | Out-String)
         }
         else {
@@ -1901,7 +1916,7 @@ function Monitor() {
         $datatable.Load($MemberResult)
 
         if ($datatable.Rows.Count -gt 0) {
-            Write-Host "Member Monitor (running) ("$lastTimeString"): new records:" -ForegroundColor Green
+            Write-Host "Member Monitor (running commands) ("$lastTimeString"): new records:" -ForegroundColor Green
             Write-Host ($datatable | Format-Table | Out-String)
         }
         else {
@@ -1941,7 +1956,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.3 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.4 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
