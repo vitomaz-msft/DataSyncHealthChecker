@@ -1098,7 +1098,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.4' `
+                    | Add-Member -PassThru NoteProperty name '6.5' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1455,6 +1455,52 @@ function GetIndexes($table) {
     }
 }
 
+function GetConstraints($table) {
+    Try {
+        $query = "select case when [syskc].[type] = 'PK' then 'PK' when [syskc].[type] = 'UQ' then 'UNIQUE'
+        when [sysidx].[type] = 1 then 'UQ CI' when [sysidx].[type] = 2 then 'UQ INDEX' end as [type], 
+        ISNULL([syskc].[name], [sysidx].[name]) as [name], SUBSTRING([columns], 1, LEN([columns])-1) as [definition]
+        from sys.objects [sysobj]
+        left outer join sys.indexes [sysidx] on [sysobj].[object_id] = [sysidx].[object_id]
+        left outer join sys.key_constraints [syskc] on [sysidx].[object_id] = [syskc].parent_object_id and [sysidx].index_id = [syskc].unique_index_id 
+        cross apply 
+        (select [syscol].[name] + ', ' from sys.index_columns [sysic]
+        inner join sys.columns [syscol] on [sysic].[object_id] = [syscol].[object_id] and [sysic].column_id = [syscol].column_id
+        where [sysic].[object_id] = [sysobj].[object_id] and [sysic].index_id = [sysidx].index_id FOR XML PATH ('')
+        ) COLS ([columns])
+        where is_unique = 1 and [sysobj].is_ms_shipped <> 1 and ('['+ SCHEMA_NAME([sysobj].[schema_id]) + '].[' + [sysobj].[name] + ']') = '" + $table + "'
+        union all select 'FOREIGN KEY', [sysfk].[name], SCHEMA_NAME([systabpk].[schema_id]) + '.' + [systabpk].[name]
+        from sys.foreign_keys [sysfk]
+        inner join sys.tables [systabfk] on [systabfk].[object_id] = [sysfk].[parent_object_id]
+        inner join sys.tables [systabpk] on [systabpk].[object_id] = [sysfk].[referenced_object_id]
+        inner join sys.foreign_key_columns [sysfkcols] on [sysfkcols].[constraint_object_id] = [sysfk].[object_id]
+        where ('['+ SCHEMA_NAME([systabfk].[schema_id]) + '].[' + [systabfk].[name] + ']') = '" + $table + "'
+        union all select 'CHECK', [syscc].[name] + ']', [syscc].[definition]
+        from sys.check_constraints [syscc]
+        left outer join sys.objects [sysobj] on [syscc].parent_object_id = [sysobj].[object_id]
+        left outer join sys.all_columns [syscol] on [syscc].parent_column_id = [syscol].column_id and [syscc].parent_object_id = [syscol].[object_id]
+        where ('['+ SCHEMA_NAME([sysobj].[schema_id]) + '].[' + [sysobj].[name]+ ']') = '" + $table + "'
+        union all select 'DEFAULT', [sysdc].[name], [syscol].[name] + ' = ' + [sysdc].[definition]
+        from sys.default_constraints [sysdc]
+        left outer join sys.objects [sysobj] on [sysdc].[parent_object_id] = [sysobj].[object_id]
+        left outer join sys.all_columns [syscol] on [sysdc].[parent_column_id] = [syscol].[column_id] and [sysdc].[parent_object_id] = [syscol].[object_id]
+        where ('['+ SCHEMA_NAME([sysobj].[schema_id]) + '].[' + [sysobj].[name] + ']') = '" + $table + "'"
+
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object 'System.Data.DataTable'
+        $datatable.Load($result)
+        if ($datatable.Rows.Count -gt 0) {
+            $msg = "Constraints for " + $table + ":"
+            Write-Host $msg -Foreground Green
+            $datatable | Format-Table -Wrap -AutoSize
+        }
+    }
+    Catch {
+        Write-Host $_.Exception.Message -ForegroundColor Red
+    }
+}
+
 function SanitizeString([String] $param) {
     return ($param.Replace('\', '_').Replace('/', '_').Replace("[", "").Replace("]", "").Replace('.', '_').Replace(':', '_').Replace(',', '_'))
 }
@@ -1702,6 +1748,7 @@ function ValidateDSSMember() {
 
                         ## Indexes
                         GetIndexes $table.Name
+                        GetConstraints $table.Name
                     }
 
                     #Constraints
@@ -1956,7 +2003,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.4 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.5 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
