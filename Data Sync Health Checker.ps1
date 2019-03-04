@@ -1460,12 +1460,12 @@ function GetIndexes($table) {
 function GetConstraints($table) {
     Try {
         $query = "select case when [syskc].[type] = 'PK' then 'PK' when [syskc].[type] = 'UQ' then 'UNIQUE'
-        when [sysidx].[type] = 1 then 'UQ CI' when [sysidx].[type] = 2 then 'UQ INDEX' end as [type], 
+        when [sysidx].[type] = 1 then 'UQ CI' when [sysidx].[type] = 2 then 'UQ INDEX' end as [type],
         ISNULL([syskc].[name], [sysidx].[name]) as [name], SUBSTRING([columns], 1, LEN([columns])-1) as [definition]
         from sys.objects [sysobj]
         left outer join sys.indexes [sysidx] on [sysobj].[object_id] = [sysidx].[object_id]
-        left outer join sys.key_constraints [syskc] on [sysidx].[object_id] = [syskc].parent_object_id and [sysidx].index_id = [syskc].unique_index_id 
-        cross apply 
+        left outer join sys.key_constraints [syskc] on [sysidx].[object_id] = [syskc].parent_object_id and [sysidx].index_id = [syskc].unique_index_id
+        cross apply
         (select [syscol].[name] + ', ' from sys.index_columns [sysic]
         inner join sys.columns [syscol] on [sysic].[object_id] = [syscol].[object_id] and [sysic].column_id = [syscol].column_id
         where [sysic].[object_id] = [sysobj].[object_id] and [sysic].index_id = [sysidx].index_id FOR XML PATH ('')
@@ -1993,11 +1993,22 @@ function FilterTranscript() {
 
 Try {
     Clear-Host
-    $tempDir = $env:TEMP + '\DataSyncHealthChecker\' + [System.DateTime]::Now.ToString('yyyyMMddTHHmmss')
     $canWriteFiles = $true
     Try {
-        New-Item $tempDir -ItemType directory | Out-Null
+        Set-Location $HOME\clouddrive -ErrorAction Stop
+        Write-Host "This seems to be Azure Portal"
+    }
+    Catch {
+        Write-Host "This doesn't seem to be Azure Portal"
+    }
+    Try {
+        $tempDir = $env:TEMP
         Set-Location -Path $tempDir
+        New-Item DataSyncHealthChecker -ItemType directory | Out-Null
+        cd DataSyncHealthChecker
+        $outFolderName = [System.DateTime]::Now.ToString('yyyyMMddTHHmmss')
+        New-Item $outFolderName -ItemType directory | Out-Null
+        cd $outFolderName
         $file = '.\_SyncDB_Log.txt'
         Start-Transcript -Path $file
         Write-Host '..TranscriptStart..'
