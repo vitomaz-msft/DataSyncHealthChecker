@@ -484,7 +484,7 @@ function ValidateSP([String] $SP) {
             $tableNameWithoutSchema = ($DumpMetadataObjectsForTable.Replace("[", "").Replace("]", "").Split('.'))[1] + '_dss'
             if ($DumpMetadataObjectsForTable -and ($SP.IndexOf($tableNameWithoutSchema) -ne -1)) {
                 $xmlResult = $sphelptextDataTable.Text
-                if($xmlResult -and $canWriteFiles){
+                if ($xmlResult -and $canWriteFiles) {
                     $xmlResult | Out-File -filepath ('.\' + (SanitizeString $Server) + '_' + (SanitizeString $Database) + '_' + (SanitizeString $SP) + '.txt')
                 }
             }
@@ -1782,7 +1782,7 @@ function ValidateDSSMember() {
             [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
             [void]$dumpScript.AppendLine(" --LEFTOVERS CLEANUP SCRIPT : END")
             [void]$dumpScript.AppendLine(" --*****************************************************************************************************************")
-            if($canWriteFiles){
+            if ($canWriteFiles) {
                 ($dumpScript.ToString()) | Out-File -filepath ('.\' + (SanitizeString $Server) + '_' + (SanitizeString $Database) + '_leftovers.sql')
             }
         }
@@ -1875,21 +1875,21 @@ function Monitor() {
 
         Try {
             $os = Get-Ciminstance Win32_OperatingSystem
-            $FreePhysicalMemory = [math]::Round(($os.FreePhysicalMemory/1024),2)
-            $FreeVirtualMemory = [math]::Round(($os.FreeVirtualMemory/1024),2)
+            $FreePhysicalMemory = [math]::Round(($os.FreePhysicalMemory / 1024), 2)
+            $FreeVirtualMemory = [math]::Round(($os.FreeVirtualMemory / 1024), 2)
             Write-Host "FreePhysicalMemory:" $FreePhysicalMemory "|" "FreeVirtualMemory:" $FreeVirtualMemory -ForegroundColor Yellow
         }
         Catch {
             Write-Host $_.Exception.Message -ForegroundColor Red
         }
 
-        Try{
-            $tempfolderfiles = [System.IO.Directory]::EnumerateFiles([Environment]::GetEnvironmentVariable("TEMP", "User"),"*.*","AllDirectories")
+        Try {
+            $tempfolderfiles = [System.IO.Directory]::EnumerateFiles([Environment]::GetEnvironmentVariable("TEMP", "User"), "*.*", "AllDirectories")
             $batchFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "sync_" -and $_ -match ".batch"}).Count
             $MATSFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "MATS_" }).Count
             Write-Host Temp folder at user level - batch:$batchFiles MATS:$MATSFiles -ForegroundColor Yellow
 
-            $tempfolderfiles = [System.IO.Directory]::EnumerateFiles([Environment]::GetEnvironmentVariable("TEMP", "Machine"),"*.*","AllDirectories")
+            $tempfolderfiles = [System.IO.Directory]::EnumerateFiles([Environment]::GetEnvironmentVariable("TEMP", "Machine"), "*.*", "AllDirectories")
             $batchFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "sync_" -and $_ -match ".batch"}).Count
             $MATSFiles = ($tempfolderfiles | Where-Object {$_ -match "DSS2_" -and $_ -match "MATS_" }).Count
             Write-Host Temp folder at machine level - batch:$batchFiles MATS:$MATSFiles -ForegroundColor Yellow
@@ -2005,8 +2005,7 @@ Try {
         Set-Location -Path $env:TEMP
     }
     Try {
-        If(!(Test-Path DataSyncHealthChecker))
-        {
+        If (!(Test-Path DataSyncHealthChecker)) {
             New-Item DataSyncHealthChecker -ItemType directory | Out-Null
         }
         Set-Location DataSyncHealthChecker
@@ -2161,7 +2160,10 @@ Try {
     }
 }
 Finally {
-    if($canWriteFiles -and !$isThisFromAzurePortal){
-        Invoke-Item (Get-Location).Path
+    if ($canWriteFiles) {
+        Write-Host Files can be found at (Get-Location).Path
+        if (!$isThisFromAzurePortal) {
+            Invoke-Item (Get-Location).Path
+        }
     }
 }
