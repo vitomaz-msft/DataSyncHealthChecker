@@ -1997,18 +1997,22 @@ Try {
     Try {
         Set-Location $HOME\clouddrive -ErrorAction Stop
         Write-Host "This seems to be Azure Portal"
+        $isThisFromAzurePortal = $true
     }
     Catch {
+        $isThisFromAzurePortal = $false
         Write-Host "This doesn't seem to be Azure Portal"
+        Set-Location -Path $env:TEMP
     }
     Try {
-        $tempDir = $env:TEMP
-        Set-Location -Path $tempDir
-        New-Item DataSyncHealthChecker -ItemType directory | Out-Null
-        cd DataSyncHealthChecker
+        If(!(Test-Path DataSyncHealthChecker))
+        {
+            New-Item DataSyncHealthChecker -ItemType directory | Out-Null
+        }
+        Set-Location DataSyncHealthChecker
         $outFolderName = [System.DateTime]::Now.ToString('yyyyMMddTHHmmss')
         New-Item $outFolderName -ItemType directory | Out-Null
-        cd $outFolderName
+        Set-Location $outFolderName
         $file = '.\_SyncDB_Log.txt'
         Start-Transcript -Path $file
         Write-Host '..TranscriptStart..'
@@ -2157,7 +2161,7 @@ Try {
     }
 }
 Finally {
-    if($canWriteFiles){
-        Invoke-Item $tempDir
+    if($canWriteFiles -and !$isThisFromAzurePortal){
+        Invoke-Item (Get-Location).Path
     }
 }
