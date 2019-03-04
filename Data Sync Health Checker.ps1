@@ -1098,7 +1098,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.5' `
+                    | Add-Member -PassThru NoteProperty name '6.6' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1979,9 +1979,11 @@ function Monitor() {
 }
 
 function FilterTranscript() {
-    $lineNumber = (Select-String -Path $file -Pattern '..TranscriptStart..').LineNumber
-    if ($lineNumber) {
-        (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+    if ($canWriteFiles) {
+        $lineNumber = (Select-String -Path $file -Pattern '..TranscriptStart..').LineNumber
+        if ($lineNumber) {
+            (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+        }
     }
 }
 
@@ -1990,7 +1992,6 @@ Try {
     $tempDir = $env:TEMP + '\DataSyncHealthChecker\' + [System.DateTime]::Now.ToString('yyyyMMddTHHmmss')
     $canWriteFiles = $true
     Try {
-        throw [System.IO.FileNotFoundException] "$file not found."
         New-Item $tempDir -ItemType directory | Out-Null
         Set-Location -Path $tempDir
         $file = '.\_SyncDB_Log.txt'
@@ -1999,11 +2000,12 @@ Try {
     }
     Catch {
         $canWriteFiles = $false
+        Write-Host Warning: Cannot write files -ForegroundColor Yellow
     }
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.5 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.6 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
@@ -2067,9 +2069,11 @@ Try {
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForHub
     if ($HealthChecksEnabled -and ($null -ne $Server) -and ($Server -ne '') -and ($null -ne $Database) -and ($Database -ne '')) {
         Try {
-            $file = '.\_Hub_Log.txt'
-            Start-Transcript -Path $file
-            Write-Host '..TranscriptStart..'
+            if ($canWriteFiles) {
+                $file = '.\_Hub_Log.txt'
+                Start-Transcript -Path $file
+                Write-Host '..TranscriptStart..'
+            }
             Write-Host
             Write-Host ***************** Validating Hub ********************** -ForegroundColor Green
             Write-Host
@@ -2077,7 +2081,9 @@ Try {
         }
         Finally {
             Try {
-                Stop-Transcript | Out-Null
+                if ($canWriteFiles) {
+                    Stop-Transcript | Out-Null
+                }
             }
             Catch [System.InvalidOperationException] {}
             FilterTranscript
@@ -2093,9 +2099,11 @@ Try {
     $ExtendedValidationsEnabled = $ExtendedValidationsEnabledForMember
     if ($HealthChecksEnabled -and ($null -ne $Server) -and ($Server -ne '') -and ($null -ne $Database) -and ($Database -ne '')) {
         Try {
-            $file = '.\_Member_Log.txt'
-            Start-Transcript -Path $file
-            Write-Host '..TranscriptStart..'
+            if ($canWriteFiles) {
+                $file = '.\_Member_Log.txt'
+                Start-Transcript -Path $file
+                Write-Host '..TranscriptStart..'
+            }
             Write-Host
             Write-Host ***************** Validating Member ********************** -ForegroundColor Green
             Write-Host
@@ -2103,7 +2111,9 @@ Try {
         }
         Finally {
             Try {
-                Stop-Transcript | Out-Null
+                if ($canWriteFiles) {
+                    Stop-Transcript | Out-Null
+                }
             }
             Catch [System.InvalidOperationException] {}
             FilterTranscript
@@ -2113,14 +2123,18 @@ Try {
     #Monitor
     if ($MonitoringMode -eq 'ENABLED') {
         Try {
-            $file = '.\_Monitoring_Log.txt'
-            Start-Transcript -Path $file
-            Write-Host '..TranscriptStart..'
+            if ($canWriteFiles) {
+                $file = '.\_Monitoring_Log.txt'
+                Start-Transcript -Path $file
+                Write-Host '..TranscriptStart..'
+            }
             Monitor
         }
         Finally {
             Try {
-                Stop-Transcript | Out-Null
+                if ($canWriteFiles) {
+                    Stop-Transcript | Out-Null
+                }
             }
             Catch [System.InvalidOperationException] {}
             FilterTranscript
