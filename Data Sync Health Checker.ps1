@@ -1804,10 +1804,10 @@ function ValidateDSSMember() {
             Write-Host NO ERRORS DETECTED!
         }
         if(($Server -eq $MemberServer) -and ($Database -eq $MemberDatabase)){
-            $errorSummaryForMember = $errorSummary
+            $script:errorSummaryForMember = $errorSummary
         }
         if(($Server -eq $HubServer) -and ($Database -eq $HubDatabase)){
-            $errorSummaryForHub = $errorSummary
+            $script:errorSummaryForHub = $errorSummary
         }
     }
     Finally {
@@ -1998,6 +1998,8 @@ function FilterTranscript() {
 
 Try {
     Clear-Host
+    $errorSummaryForMember
+    $errorSummaryForHub
     $canWriteFiles = $true
     Try {
         Set-Location $HOME\clouddrive -ErrorAction Stop
@@ -2164,24 +2166,24 @@ Try {
         }
     }
 
-    if ($errorSummaryForHub -and $errorSummary.Length -gt 0) {
+    if ($script:errorSummaryForHub -and $script:errorSummaryForHub.Length -gt 0) {
         Write-Host
-        Write-Host "************************" -Foreground Red
-        Write-Host "WARNINGS SUMMARY FOR HUB" -Foreground Red
-        Write-Host "************************" -Foreground Red
-        Write-Host $errorSummaryForHub.ToString() -Foreground Red
+        Write-Host "******************************" -Foreground Red
+        Write-Host "   WARNINGS SUMMARY FOR HUB" -Foreground Red
+        Write-Host "******************************" -Foreground Red
+        Write-Host $script:errorSummaryForHub.ToString() -Foreground Red
         Write-Host
     }
     else {
         Write-Host
         Write-Host "NO ERRORS DETECTED IN THE HUB!"
     }
-    if ($errorSummaryForMember -and $errorSummaryForMember.Length -gt 0) {
+    if ($script:errorSummaryForMember -and $script:errorSummaryForMember.Length -gt 0) {
         Write-Host
-        Write-Host "***************************" -Foreground Red
-        Write-Host "WARNINGS SUMMARY FOR MEMBER" -Foreground Red
-        Write-Host "***************************" -Foreground Red
-        Write-Host $errorSummaryForMember.ToString() -Foreground Red
+        Write-Host "*********************************" -Foreground Red
+        Write-Host "   WARNINGS SUMMARY FOR MEMBER" -Foreground Red
+        Write-Host "*********************************" -Foreground Red
+        Write-Host $script:errorSummaryForMember.ToString() -Foreground Red
         Write-Host
     }
     else {
