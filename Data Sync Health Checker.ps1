@@ -1803,13 +1803,18 @@ function ValidateDSSMember() {
             Write-Host
             Write-Host NO ERRORS DETECTED!
         }
+        if(($Server -eq $MemberServer) -and ($Database -eq $MemberDatabase)){
+            $errorSummaryForMember = $errorSummary
+        }
+        if(($Server -eq $HubServer) -and ($Database -eq $HubDatabase)){
+            $errorSummaryForHub = $errorSummary
+        }
     }
     Finally {
         if ($SyncDbConnection) {
             Write-Host Closing connection to SyncDb...
             $SyncDbConnection.Close()
         }
-
         if ($MemberConnection) {
             Write-Host Closing connection to Member...
             $MemberConnection.Close()
@@ -2157,6 +2162,31 @@ Try {
             Catch [System.InvalidOperationException] {}
             FilterTranscript
         }
+    }
+
+    if ($errorSummaryForHub -and $errorSummary.Length -gt 0) {
+        Write-Host
+        Write-Host "************************" -Foreground Red
+        Write-Host "WARNINGS SUMMARY FOR HUB" -Foreground Red
+        Write-Host "************************" -Foreground Red
+        Write-Host $errorSummaryForHub.ToString() -Foreground Red
+        Write-Host
+    }
+    else {
+        Write-Host
+        Write-Host "NO ERRORS DETECTED IN THE HUB!"
+    }
+    if ($errorSummaryForMember -and $errorSummaryForMember.Length -gt 0) {
+        Write-Host
+        Write-Host "***************************" -Foreground Red
+        Write-Host "WARNINGS SUMMARY FOR MEMBER" -Foreground Red
+        Write-Host "***************************" -Foreground Red
+        Write-Host $errorSummaryForMember.ToString() -Foreground Red
+        Write-Host
+    }
+    else {
+        Write-Host
+        Write-Host "NO ERRORS DETECTED IN THE MEMBER!"
     }
 }
 Finally {
