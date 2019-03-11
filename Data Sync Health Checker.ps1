@@ -1803,10 +1803,10 @@ function ValidateDSSMember() {
             Write-Host
             Write-Host NO ERRORS DETECTED!
         }
-        if(($Server -eq $MemberServer) -and ($Database -eq $MemberDatabase)){
+        if (($Server -eq $MemberServer) -and ($Database -eq $MemberDatabase)) {
             $script:errorSummaryForMember = $errorSummary
         }
-        if(($Server -eq $HubServer) -and ($Database -eq $HubDatabase)){
+        if (($Server -eq $HubServer) -and ($Database -eq $HubDatabase)) {
             $script:errorSummaryForHub = $errorSummary
         }
     }
@@ -2194,6 +2194,11 @@ Try {
 Finally {
     if ($canWriteFiles) {
         Write-Host Files can be found at (Get-Location).Path
+        if ($PSVersionTable.PSVersion -ge 5) {
+            $destAllFiles = (Get-Location).Path + '/AllFiles.zip'
+            Compress-Archive -Path (Get-Location).Path -DestinationPath $destAllFiles -Force
+            Write-Host 'A zip file with all the files can be found at' $destAllFiles -ForegroundColor Red
+        }
         if (!$isThisFromAzurePortal) {
             Invoke-Item (Get-Location).Path
         }
