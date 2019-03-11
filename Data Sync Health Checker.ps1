@@ -2194,7 +2194,7 @@ Try {
 Finally {
     if ($canWriteFiles) {
         Write-Host Files can be found at (Get-Location).Path
-        if ($PSVersionTable.PSVersion -ge 5) {
+        if ($PSVersionTable.PSVersion.Major -ge 5) {
             $destAllFiles = (Get-Location).Path + '/AllFiles.zip'
             Compress-Archive -Path (Get-Location).Path -DestinationPath $destAllFiles -Force
             Write-Host 'A zip file with all the files can be found at' $destAllFiles -ForegroundColor Red
