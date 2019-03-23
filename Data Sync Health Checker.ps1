@@ -227,7 +227,7 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
     }
 }
 
-function ShowRowCount([Array] $userTables) {
+function ShowRowCountAndFragmentation([Array] $userTables) {
 
     $tablesList = New-Object System.Collections.ArrayList
 
@@ -238,6 +238,7 @@ function ShowRowCount([Array] $userTables) {
 
     $tablesListStr = "'$($tablesList -join "','")'"
 
+    #Row Count
     $query = "SELECT
 '['+s.name+'].['+ t.name+']' as TableName,
 p.rows AS RowCounts,
@@ -259,6 +260,28 @@ ORDER BY '['+s.name+'].['+ t.name+']'"
     $datatable.Load($result)
     if ($datatable.Rows.Count -gt 0) {
         $datatable | Format-Table -Wrap -AutoSize
+    }
+
+    #Fragmentation
+    $query = "SELECT '['+s.[name]+'].['+ t.[name]+']' as TableName, i.[name] as [IndexName],
+CONVERT(DECIMAL(10,2),idxstats.avg_fragmentation_in_percent) as FragmentationPercent,
+idxstats.page_count AS [PageCount]
+FROM sys.dm_db_index_physical_stats (DB_ID(), NULL, NULL, NULL, NULL) AS idxstats
+INNER JOIN sys.tables t on t.[object_id] = idxstats.[object_id]
+INNER JOIN sys.schemas s on t.[schema_id] = s.[schema_id]
+INNER JOIN sys.indexes AS i ON i.[object_id] = idxstats.[object_id] AND idxstats.index_id = i.index_id
+WHERE '['+s.name+'].['+ t.name+']' IN (" + $tablesListStr + ")
+AND idxstats.database_id = DB_ID() AND idxstats.avg_fragmentation_in_percent >= 5
+ORDER BY idxstats.avg_fragmentation_in_percent desc"
+    $MemberCommand.CommandText = $query
+    $result = $MemberCommand.ExecuteReader()
+    $datatable = new-object 'System.Data.DataTable'
+    $datatable.Load($result)
+    if ($datatable.Rows.Count -gt 0) {
+        $datatable | Format-Table -Wrap -AutoSize
+    }
+    else{
+        Write-Host "No relevant fragmentation (>5%) detected" -ForegroundColor Green
     }
 }
 
@@ -1056,7 +1079,7 @@ function GetUIHistory {
         INNER JOIN [dss].[userdatabase] AS ud on ui.databaseid = ud.id
         WHERE ui.[detailEnumId] != 'SyncSuccess' AND ui.[detailEnumId] != 'SyncSuccessWithWarning' AND ui.[detailEnumId] NOT LIKE '%Failure'
         AND ud.[server] = '" + $Server + "' AND ud.[database] = '" + $Database + "')
-        SELECT TOP(20) [completionTime],SyncGroupName,OperationResult,Seconds,Upload,UploadFailed AS UpFailed,Download,DownloadFailed AS DFailed,Error
+        SELECT TOP(30) [completionTime],SyncGroupName,OperationResult,Seconds,Upload,UploadFailed AS UpFailed,Download,DownloadFailed AS DFailed,Error
         FROM UIHistory_CTE ORDER BY [completionTime] DESC"
 
         $SyncDbCommand.CommandText = $query
@@ -1100,7 +1123,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.6' `
+                    | Add-Member -PassThru NoteProperty name '6.7' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1112,7 +1135,7 @@ function SendAnonymousUsageData {
         $body = $body | ConvertTo-JSON -depth 5;
         Invoke-WebRequest -Uri 'https://dc.services.visualstudio.com/v2/track' -Method 'POST' -UseBasicParsing -body $body > $null
     }
-    Catch { Write-Host $_ }
+    Catch {}
 }
 
 function ValidateSyncDB {
@@ -1533,7 +1556,7 @@ function ValidateDSSMember() {
         $SyncDbCommand = New-Object System.Data.SQLClient.SQLCommand
         $SyncDbCommand.Connection = $SyncDbConnection
 
-        Write-Host Validating Server and Database names exist in SyncDB
+        Write-Host Validating if $Server/$Database exist in SyncDB:
 
         $SyncDbCommand.CommandText = "SELECT count(*) as C FROM [dss].[userdatabase] WHERE server = '" + $Server + "' and [database] = '" + $Database + "'"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
@@ -1544,8 +1567,11 @@ function ValidateDSSMember() {
             Write-Host ERROR: $Server/$Database was not found in [dss].[userdatabase] -ForegroundColor Red
             return;
         }
+        else{
+            Write-Host $Server/$Database was found in SyncDB -ForegroundColor Green
+        }
 
-        Write-Host Getting scopes in SyncDB for this member database...
+        Write-Host Getting scopes in SyncDB for this member database:
 
         $SyncDbCommand.CommandText = "SELECT m.[scopename]
         ,sg.name as SyncGroupName
@@ -1572,7 +1598,7 @@ function ValidateDSSMember() {
         $SyncDbMembersDataTable = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTable.Load($SyncDbMembersResult)
 
-        Write-Host $SyncDbMembersDataTable.Rows.Count members found in this sync metadata database
+        Write-Host $SyncDbMembersDataTable.Rows.Count members found in this sync metadata database -ForegroundColor Green
         $SyncDbMembersDataTable.Rows | Sort-Object -Property scopename | Select-Object scopename, SyncGroupName, MemberName, SyncDirection, State, HubState, JobId, Messages | Format-Table -Wrap -AutoSize
         $scopesList = $SyncDbMembersDataTable.Rows | Select-Object -ExpandProperty scopename
 
@@ -1625,7 +1651,7 @@ function ValidateDSSMember() {
         }
 
         Write-Host
-        Write-Host Connecting to Hub/Member $Server"/"$Database
+        Write-Host Connecting to $Server"/"$Database
         Try {
             $MemberConnection.Open()
         }
@@ -1661,7 +1687,7 @@ function ValidateDSSMember() {
 
         ValidateTablesVSSyncDbSchema $SyncDbMembersDataTable
         Write-Host
-        Write-Host Getting scopes in this Hub/Member database...
+        Write-Host Getting scopes in this $Server"/"$Database database...
 
         Try {
             $MemberCommand.CommandText = "SELECT [sync_scope_name], [scope_local_id], [scope_config_id],[config_data],[scope_status], CAST([schema_major_version] AS varchar) + '.' + CAST([schema_minor_version] AS varchar) as [Version] FROM [DataSync].[scope_config_dss] AS sc LEFT OUTER JOIN [DataSync].[scope_info_dss] AS si ON si.scope_config_id = sc.config_id LEFT JOIN [DataSync].[schema_info_dss] ON 1=1"
@@ -1677,7 +1703,8 @@ function ValidateDSSMember() {
 
             foreach ($scope in $MemberScopes) {
                 Write-Host
-                Write-Host "Validating scope " $scope.scope_config_id
+                $SyncGroupName = $SyncDbMembersDataTable.Rows | Where-Object {$_.scopename -eq $scope.sync_scope_name} | Select-Object -ExpandProperty SyncGroupName
+                Write-Host "Validating sync group" $SyncGroupName "(ScopeName:"$scope.sync_scope_name")"
                 if ($scope.sync_scope_name -notin $scopesList) {
                     Write-Host "WARNING:" [DataSync].[scope_config_dss].[config_id] $scope.scope_config_id "should be a leftover." -Foreground Yellow
                     Write-Host "WARNING:" [DataSync].[scope_info_dss].[scope_local_id] $scope.scope_local_id "should be a leftover." -Foreground Yellow
@@ -1721,7 +1748,7 @@ function ValidateDSSMember() {
 
                     #Tables
                     ValidateTablesVSLocalSchema ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select-Object -ExpandProperty GlobalName)
-                    ShowRowCount ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select-Object -ExpandProperty GlobalName)
+                    ShowRowCountAndFragmentation ($xmlcontent.SqlSyncProviderScopeConfiguration.Adapter | Select-Object -ExpandProperty GlobalName)
 
                     foreach ($table in $xmlcontent.SqlSyncProviderScopeConfiguration.Adapter) {
                         #Tracking Tables
@@ -1996,6 +2023,13 @@ function FilterTranscript() {
     }
 }
 
+function SanitizeServerName([string]$ServerName) {
+    $ServerName = $ServerName.Trim()
+    $ServerName = $ServerName.Replace('tcp:','')
+    $ServerName = $ServerName.Replace(',1433','')
+    return $ServerName
+}
+
 Try {
     Clear-Host
     $errorSummaryForMember
@@ -2030,7 +2064,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.6 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.7 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
@@ -2066,6 +2100,7 @@ Try {
             Write-Host
             Write-Host ***************** Validating Sync Metadata Database ********************** -ForegroundColor Green
             Write-Host
+            $SyncDbServer = SanitizeServerName $SyncDbServer
             ValidateSyncDB
             if ($DumpMetadataSchemasForSyncGroup -ne '') {
                 DumpMetadataSchemasForSyncGroup $DumpMetadataSchemasForSyncGroup
@@ -2086,7 +2121,7 @@ Try {
     }
 
     #Hub
-    $Server = $HubServer
+    $Server = SanitizeServerName $HubServer
     $Database = $HubDatabase
     $MbrUseWindowsAuthentication = $false
     $MbrUser = $HubUser
@@ -2116,7 +2151,7 @@ Try {
     }
 
     #Member
-    $Server = $MemberServer
+    $Server = SanitizeServerName $MemberServer
     $Database = $MemberDatabase
     $MbrUseWindowsAuthentication = $MemberUseWindowsAuthentication
     $MbrUser = $MemberUser
