@@ -146,13 +146,15 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
         $TablePKList = New-Object System.Collections.ArrayList
 
         $query = "SELECT
-                     c.name 'ColumnName',
-                     t.Name 'Datatype',
-                     c.max_length 'MaxLength',
-                     c.is_nullable 'IsNullable'
-                     FROM sys.columns c
-                     INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-                     WHERE c.object_id = OBJECT_ID('" + $userTable + "')"
+        c.name 'ColumnName',
+        t.Name 'Datatype',
+        c.max_length 'MaxLength',
+        c.is_nullable 'IsNullable',
+        c.is_computed 'IsComputed',
+        c.default_object_id 'DefaultObjectId'
+        FROM sys.columns c
+        INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+        WHERE c.object_id = OBJECT_ID('" + $userTable + "')"
         $MemberCommand.CommandText = $query
         $result = $MemberCommand.ExecuteReader()
         $datatable = new-object 'System.Data.DataTable'
@@ -163,8 +165,8 @@ function ValidateTablesVSLocalSchema([Array] $userTables) {
             $schemaObj = $global:scope_config_data.SqlSyncProviderScopeConfiguration.Adapter | Where-Object GlobalName -eq $userTable
             $schemaColumn = $schemaObj.Col | Where-Object Name -eq $userColumn.ColumnName
             if (!$schemaColumn) {
-                if ($userColumn.IsNullable -eq $false) {
-                    $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] is not included in the sync group but is NOT NULLABLE!"
+                if (($userColumn.IsNullable -eq $false) -and ($userColumn.IsComputed -eq $false) -and ($userColumn.DefaultObjectId -eq 0) ) {
+                    $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] is not included in the sync group but is NOT NULLABLE, not a computed column or has a default value!"
                     Write-Host $msg -Foreground Red
                     [void]$errorSummary.AppendLine($msg)
                 }
@@ -1123,7 +1125,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.7' `
+                    | Add-Member -PassThru NoteProperty name '6.7.1' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -2064,7 +2066,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.7 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.7.1 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
@@ -2232,7 +2234,7 @@ Finally {
         if ($PSVersionTable.PSVersion.Major -ge 5) {
             $destAllFiles = (Get-Location).Path + '/AllFiles.zip'
             Compress-Archive -Path (Get-Location).Path -DestinationPath $destAllFiles -Force
-            Write-Host 'A zip file with all the files can be found at' $destAllFiles -ForegroundColor Red
+            Write-Host 'A zip file with all the files can be found at' $destAllFiles -ForegroundColor Yellow
         }
         if (!$isThisFromAzurePortal) {
             Invoke-Item (Get-Location).Path
