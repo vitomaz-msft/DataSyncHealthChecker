@@ -282,7 +282,7 @@ ORDER BY idxstats.avg_fragmentation_in_percent desc"
     if ($datatable.Rows.Count -gt 0) {
         $datatable | Format-Table -Wrap -AutoSize
     }
-    else{
+    else {
         Write-Host "No relevant fragmentation (>5%) detected" -ForegroundColor Green
     }
 }
@@ -851,14 +851,29 @@ function ValidateFKDependencies([Array] $userTables) {
 
 function ValidateProvisionMarker {
     Try {
-        $query = "WITH TrackingTablesObjId_CTE (object_id) AS (
+        $query = "SELECT COUNT(*) AS C FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] = 'provision_marker_dss'"
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object 'System.Data.DataTable'
+        $datatable.Load($result)
+        $provisionMarkerDSSExists = ($datatable.Rows[0].C -eq 1);
+
+        if (!$provisionMarkerDSSExists) {
+            $query = "WITH TrackingTablesObjId_CTE (object_id) AS (
 SELECT OBJECT_ID(REPLACE([name], '_dss_tracking', ''))
-FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking')
-)
+FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking'))
+SELECT '['+OBJECT_SCHEMA_NAME(cte.object_id)+'].['+ OBJECT_NAME(cte.object_id) +']' AS TableName, cte.object_id
+FROM TrackingTablesObjId_CTE AS cte"
+        }
+        else {
+            $query = "WITH TrackingTablesObjId_CTE (object_id) AS (
+SELECT OBJECT_ID(REPLACE([name], '_dss_tracking', ''))
+FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking'))
 SELECT '['+OBJECT_SCHEMA_NAME(cte.object_id)+'].['+ OBJECT_NAME(cte.object_id) +']' AS TableName, cte.object_id
 FROM TrackingTablesObjId_CTE AS cte
 LEFT OUTER JOIN [DataSync].[provision_marker_dss] marker on marker.owner_scope_local_id = 0 and marker.object_id = cte.object_id
 WHERE marker.object_id IS NULL"
+        }
 
         $MemberCommand.CommandText = $query
         $result = $MemberCommand.ExecuteReader()
@@ -876,7 +891,12 @@ WHERE marker.object_id IS NULL"
             [void]$errorSummary.AppendLine($msg)
 
             foreach ($row in $datatable) {
-                $msg = "- Tracking table for " + $row.TableName + " exists but there is no provision_marker record with object_id " + $row.object_id
+                if (!$provisionMarkerDSSExists) {
+                    $msg = "- Tracking table for " + $row.TableName + " exists but provision_marker_dss table does not exist"
+                }
+                else {
+                    $msg = "- Tracking table for " + $row.TableName + " exists but there is no provision_marker record with object_id " + $row.object_id
+                }
                 Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
@@ -1132,7 +1152,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.8' `
+                    | Add-Member -PassThru NoteProperty name '6.8.1' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1576,7 +1596,7 @@ function ValidateDSSMember() {
             Write-Host ERROR: $Server/$Database was not found in [dss].[userdatabase] -ForegroundColor Red
             return;
         }
-        else{
+        else {
             Write-Host $Server/$Database was found in SyncDB -ForegroundColor Green
         }
 
@@ -2034,8 +2054,8 @@ function FilterTranscript() {
 
 function SanitizeServerName([string]$ServerName) {
     $ServerName = $ServerName.Trim()
-    $ServerName = $ServerName.Replace('tcp:','')
-    $ServerName = $ServerName.Replace(',1433','')
+    $ServerName = $ServerName.Replace('tcp:', '')
+    $ServerName = $ServerName.Replace(',1433', '')
     return $ServerName
 }
 
@@ -2073,7 +2093,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.8 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.8.1 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
