@@ -467,7 +467,7 @@ function ValidateTrigger([String] $trigger) {
 
     if ($count -eq 1) {
         if ($table.Rows[0].Disabled -eq 1) {
-            $msg = "WARNING: Trigger " + $trigger + " exists but is DISABLED!"
+            $msg = "WARNING (DSS035): Trigger " + $trigger + " exists but is DISABLED!"
             Write-Host $msg -Foreground Red
             [void]$errorSummary.AppendLine($msg)
         }
@@ -477,7 +477,7 @@ function ValidateTrigger([String] $trigger) {
     }
 
     if ($count -eq 0) {
-        $msg = "WARNING: Trigger " + $trigger + " IS MISSING!"
+        $msg = "WARNING (DSS035): Trigger " + $trigger + " IS MISSING!"
         Write-Host $msg -Foreground Red
         [void]$errorSummary.AppendLine($msg)
     }
@@ -851,12 +851,14 @@ function ValidateFKDependencies([Array] $userTables) {
 
 function ValidateProvisionMarker {
     Try {
-        $query = "select object_name(object_id) TableName, object_id, owner_scope_local_id
-        from DataSync.provision_marker_dss where object_id in (
-        select tbl1.object_id from sys.tables tbl1
-        left join sys.tables tbl2 on schema_name(tbl2.schema_id) = 'DataSync' and tbl2.name like (tbl1.name + '_dss_tracking')
-        left join datasync.provision_marker_dss marker on marker.owner_scope_local_id = 0 and marker.object_id = tbl1.object_id
-        where schema_name(tbl1.schema_id) <> 'DataSync'and tbl2.name is not null and marker.object_id is null )"
+        $query = "WITH TrackingTablesObjId_CTE (object_id) AS (
+SELECT OBJECT_ID(REPLACE([name], '_dss_tracking', ''))
+FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking')
+)
+SELECT '['+OBJECT_SCHEMA_NAME(cte.object_id)+'].['+ OBJECT_NAME(cte.object_id) +']' AS TableName, cte.object_id
+FROM TrackingTablesObjId_CTE AS cte
+LEFT OUTER JOIN [DataSync].[provision_marker_dss] marker on marker.owner_scope_local_id = 0 and marker.object_id = cte.object_id
+WHERE marker.object_id IS NULL"
 
         $MemberCommand.CommandText = $query
         $result = $MemberCommand.ExecuteReader()
@@ -864,12 +866,17 @@ function ValidateProvisionMarker {
         $datatable.Load($result)
 
         if ($datatable.Rows.Count -gt 0) {
-            $msg = "WARNING: ValidateProvisionMarker found some possible issues with:"
+
+            $msg = "WARNING DSS034: ValidateProvisionMarker found some possible issues"
+            Write-Host $msg -Foreground Yellow
+            [void]$errorSummary.AppendLine($msg)
+
+            $msg = "This can cause the error: Cannot insert the value NULL into column 'provision_timestamp', table '(...).DataSync.provision_marker_dss';"
             Write-Host $msg -Foreground Yellow
             [void]$errorSummary.AppendLine($msg)
 
             foreach ($row in $datatable) {
-                $msg = "- " + $row.TableName + " | " + $row.object_id + " | " + $row.owner_scope_local_id
+                $msg = "- Tracking table for " + $row.TableName + " exists but there is no provision_marker record with object_id " + $row.object_id
                 Write-Host $msg -Foreground Yellow
                 [void]$errorSummary.AppendLine($msg)
             }
@@ -1125,7 +1132,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.7.1' `
+                    | Add-Member -PassThru NoteProperty name '6.8' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -2066,7 +2073,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.7.1 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.8 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
