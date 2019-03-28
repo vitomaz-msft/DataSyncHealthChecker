@@ -132,158 +132,171 @@ if ($null -ne $parameters) {
 #####################################################################################################
 
 function ValidateTablesVSLocalSchema([Array] $userTables) {
+    Try {
+        if ($userTables.Count -eq 0) {
+            $msg = "WARNING: member schema with 0 tables was detected, maybe related to provisioning issues."
+            Write-Host $msg -Foreground Red
+            [void]$errorSummary.AppendLine($msg)
+        }
+        else {
+            Write-Host Schema has $userTables.Count tables
+        }
 
-    if ($userTables.Count -eq 0) {
-        $msg = "WARNING: member schema with 0 tables was detected, maybe related to provisioning issues."
-        Write-Host $msg -Foreground Red
-        [void]$errorSummary.AppendLine($msg)
-    }
-    else {
-        Write-Host Schema has $userTables.Count tables
-    }
+        foreach ($userTable in $userTables) {
+            $TablePKList = New-Object System.Collections.ArrayList
 
-    foreach ($userTable in $userTables) {
-        $TablePKList = New-Object System.Collections.ArrayList
+            $query = "SELECT
+            c.name 'ColumnName',
+            t.Name 'Datatype',
+            c.max_length 'MaxLength',
+            c.is_nullable 'IsNullable',
+            c.is_computed 'IsComputed',
+            c.default_object_id 'DefaultObjectId'
+            FROM sys.columns c
+            INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+            WHERE c.object_id = OBJECT_ID('" + $userTable + "')"
 
-        $query = "SELECT
-        c.name 'ColumnName',
-        t.Name 'Datatype',
-        c.max_length 'MaxLength',
-        c.is_nullable 'IsNullable',
-        c.is_computed 'IsComputed',
-        c.default_object_id 'DefaultObjectId'
-        FROM sys.columns c
-        INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-        WHERE c.object_id = OBJECT_ID('" + $userTable + "')"
-        $MemberCommand.CommandText = $query
-        $result = $MemberCommand.ExecuteReader()
-        $datatable = new-object 'System.Data.DataTable'
-        $datatable.Load($result)
+            $MemberCommand.CommandText = $query
+            $result = $MemberCommand.ExecuteReader()
+            $datatable = new-object 'System.Data.DataTable'
+            $datatable.Load($result)
 
-        foreach ($userColumn in $datatable) {
-            $sbCol = New-Object -TypeName "System.Text.StringBuilder"
-            $schemaObj = $global:scope_config_data.SqlSyncProviderScopeConfiguration.Adapter | Where-Object GlobalName -eq $userTable
-            $schemaColumn = $schemaObj.Col | Where-Object Name -eq $userColumn.ColumnName
-            if (!$schemaColumn) {
-                if (($userColumn.IsNullable -eq $false) -and ($userColumn.IsComputed -eq $false) -and ($userColumn.DefaultObjectId -eq 0) ) {
-                    $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] is not included in the sync group but is NOT NULLABLE, not a computed column or has a default value!"
-                    Write-Host $msg -Foreground Red
-                    [void]$errorSummary.AppendLine($msg)
+            foreach ($userColumn in $datatable) {
+                $sbCol = New-Object -TypeName "System.Text.StringBuilder"
+                $schemaObj = $global:scope_config_data.SqlSyncProviderScopeConfiguration.Adapter | Where-Object GlobalName -eq $userTable
+                $schemaColumn = $schemaObj.Col | Where-Object Name -eq $userColumn.ColumnName
+                if (!$schemaColumn) {
+                    if (($userColumn.IsNullable -eq $false) -and ($userColumn.IsComputed -eq $false) -and ($userColumn.DefaultObjectId -eq 0) ) {
+                        $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] is not included in the sync group but is NOT NULLABLE, not a computed column or has a default value!"
+                        Write-Host $msg -Foreground Red
+                        [void]$errorSummary.AppendLine($msg)
+                    }
+                    continue
                 }
-                continue
-            }
 
-            [void]$sbCol.Append($userTable + ".[" + $userColumn.ColumnName + "] " + $schemaColumn.param)
+                [void]$sbCol.Append($userTable + ".[" + $userColumn.ColumnName + "] " + $schemaColumn.param)
 
-            if ($schemaColumn.pk) {
-                [void]$sbCol.Append(" PrimaryKey ")
-                [void]$TablePKList.Add($schemaColumn.name)
-            }
+                if ($schemaColumn.pk) {
+                    [void]$sbCol.Append(" PrimaryKey ")
+                    [void]$TablePKList.Add($schemaColumn.name)
+                }
 
-            if ($schemaColumn.type -ne $userColumn.Datatype) {
-                [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):NOK ')
-                $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different datatype! (table:" + $userColumn.Datatype + " VS scope:" + $schemaColumn.type + ")"
-                Write-Host $msg -Foreground Red
-                [void]$errorSummary.AppendLine($msg)
-            }
-            else {
-                [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):OK ')
-            }
-
-            $colMaxLen = $userColumn.MaxLength
-
-            if ($schemaColumn.type -eq 'nvarchar' -or $schemaColumn.type -eq 'nchar') {$colMaxLen = $colMaxLen / 2}
-
-            if ($userColumn.MaxLength -eq -1 -and ($schemaColumn.type -eq 'nvarchar' -or $schemaColumn.type -eq 'nchar' -or $schemaColumn.type -eq 'varbinary' -or $schemaColumn.type -eq 'varchar' -or $schemaColumn.type -eq 'nvarchar')) {$colMaxLen = 'max'}
-
-            if ($schemaColumn.size -ne $colMaxLen) {
-                [void]$sbCol.Append('  Size(' + $schemaColumn.size + '):NOK ')
-                $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different data size!(table:" + $colMaxLen + " VS scope:" + $schemaColumn.size + ")"
-                Write-Host $msg -Foreground Red
-                [void]$errorSummary.AppendLine($msg)
-            }
-            else {
-                [void]$sbCol.Append('  Size(' + $schemaColumn.size + '):OK ')
-            }
-
-            if ($schemaColumn.null) {
-                if ($schemaColumn.null -ne $userColumn.IsNullable) {
-                    [void]$sbCol.Append('  Nullable(' + $schemaColumn.null + '):NOK ')
-                    $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different IsNullable! (table:" + $userColumn.IsNullable + " VS scope:" + $schemaColumn.null + ")"
+                if ($schemaColumn.type -ne $userColumn.Datatype) {
+                    [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):NOK ')
+                    $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different datatype! (table:" + $userColumn.Datatype + " VS scope:" + $schemaColumn.type + ")"
                     Write-Host $msg -Foreground Red
                     [void]$errorSummary.AppendLine($msg)
                 }
                 else {
-                    [void]$sbCol.Append('  Nullable(' + $schemaColumn.null + '):OK ')
+                    [void]$sbCol.Append('  Type(' + $schemaColumn.type + '):OK ')
                 }
+
+                $colMaxLen = $userColumn.MaxLength
+
+                if ($schemaColumn.type -eq 'nvarchar' -or $schemaColumn.type -eq 'nchar') {$colMaxLen = $colMaxLen / 2}
+
+                if ($userColumn.MaxLength -eq -1 -and ($schemaColumn.type -eq 'nvarchar' -or $schemaColumn.type -eq 'nchar' -or $schemaColumn.type -eq 'varbinary' -or $schemaColumn.type -eq 'varchar' -or $schemaColumn.type -eq 'nvarchar')) {$colMaxLen = 'max'}
+
+                if ($schemaColumn.size -ne $colMaxLen) {
+                    [void]$sbCol.Append('  Size(' + $schemaColumn.size + '):NOK ')
+                    $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different data size!(table:" + $colMaxLen + " VS scope:" + $schemaColumn.size + ")"
+                    Write-Host $msg -Foreground Red
+                    [void]$errorSummary.AppendLine($msg)
+                }
+                else {
+                    [void]$sbCol.Append('  Size(' + $schemaColumn.size + '):OK ')
+                }
+
+                if ($schemaColumn.null) {
+                    if ($schemaColumn.null -ne $userColumn.IsNullable) {
+                        [void]$sbCol.Append('  Nullable(' + $schemaColumn.null + '):NOK ')
+                        $msg = "WARNING: " + $userTable + ".[" + $userColumn.ColumnName + "] has a different IsNullable! (table:" + $userColumn.IsNullable + " VS scope:" + $schemaColumn.null + ")"
+                        Write-Host $msg -Foreground Red
+                        [void]$errorSummary.AppendLine($msg)
+                    }
+                    else {
+                        [void]$sbCol.Append('  Nullable(' + $schemaColumn.null + '):OK ')
+                    }
+                }
+
+                $sbColString = $sbCol.ToString()
+                if ($sbColString -match 'NOK') { Write-Host $sbColString -ForegroundColor Red } else { Write-Host $sbColString -ForegroundColor Green }
+
             }
 
-            $sbColString = $sbCol.ToString()
-            if ($sbColString -match 'NOK') { Write-Host $sbColString -ForegroundColor Red } else { Write-Host $sbColString -ForegroundColor Green }
-
+            if ($ExtendedValidationsEnabled -and (($ExtendedValidationsTableFilter -contains 'All') -or ($ExtendedValidationsTableFilter -contains $userTable))) {
+                ValidateTrackingRecords $userTable $TablePKList
+            }
         }
-
-        if ($ExtendedValidationsEnabled -and (($ExtendedValidationsTableFilter -contains 'All') -or ($ExtendedValidationsTableFilter -contains $userTable))) {
-            ValidateTrackingRecords $userTable $TablePKList
-        }
+    }
+    Catch {
+        Write-Host ValidateTablesVSLocalSchema exception:
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
 function ShowRowCountAndFragmentation([Array] $userTables) {
+    Try {
+        $tablesList = New-Object System.Collections.ArrayList
 
-    $tablesList = New-Object System.Collections.ArrayList
+        foreach ($item in $userTables) {
+            $tablesList.Add($item) > $null
+            $tablesList.Add('[DataSync].[' + ($item.Replace("[", "").Replace("]", "").Split('.')[1]) + '_dss_tracking]') > $null
+        }
 
-    foreach ($item in $userTables) {
-        $tablesList.Add($item) > $null
-        $tablesList.Add('[DataSync].[' + ($item.Replace("[", "").Replace("]", "").Split('.')[1]) + '_dss_tracking]') > $null
+        $tablesListStr = "'$($tablesList -join "','")'"
+
+        Write-Host "Row Counts:"
+        $query = "SELECT
+        '['+s.name+'].['+ t.name+']' as TableName,
+        p.rows AS RowCounts,
+        CAST(ROUND(((SUM(a.total_pages) * 8) / 1024.00), 2) AS NUMERIC(36, 2)) AS TotalSpaceMB,
+        CAST(ROUND(((SUM(a.used_pages) * 8) / 1024.00), 2) AS NUMERIC(36, 2)) AS UsedSpaceMB,
+        CAST(ROUND(((SUM(a.total_pages) - SUM(a.used_pages)) * 8) / 1024.00, 2) AS NUMERIC(36, 2)) AS UnusedSpaceMB
+        FROM sys.tables t
+        INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id
+        INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id
+        INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
+        LEFT OUTER JOIN sys.schemas s ON t.schema_id = s.schema_id
+        WHERE '['+s.name+'].['+ t.name+']' IN (" + $tablesListStr + ")
+        GROUP BY t.Name, s.Name, p.Rows
+        ORDER BY '['+s.name+'].['+ t.name+']'"
+
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object 'System.Data.DataTable'
+        $datatable.Load($result)
+        if ($datatable.Rows.Count -gt 0) {
+            $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
+        }
+
+        Write-Host "Fragmentation:"
+        $query = "SELECT '['+s.[name]+'].['+ t.[name]+']' as TableName, i.[name] as [IndexName],
+        CONVERT(DECIMAL(10,2),idxstats.avg_fragmentation_in_percent) as FragmentationPercent,
+        idxstats.page_count AS [PageCount]
+        FROM sys.dm_db_index_physical_stats (DB_ID(), NULL, NULL, NULL, NULL) AS idxstats
+        INNER JOIN sys.tables t on t.[object_id] = idxstats.[object_id]
+        INNER JOIN sys.schemas s on t.[schema_id] = s.[schema_id]
+        INNER JOIN sys.indexes AS i ON i.[object_id] = idxstats.[object_id] AND idxstats.index_id = i.index_id
+        WHERE '['+s.name+'].['+ t.name+']' IN (" + $tablesListStr + ")
+        AND idxstats.database_id = DB_ID() AND idxstats.avg_fragmentation_in_percent >= 5
+        ORDER BY idxstats.avg_fragmentation_in_percent desc"
+
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object 'System.Data.DataTable'
+        $datatable.Load($result)
+        if ($datatable.Rows.Count -gt 0) {
+            $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
+        }
+        else {
+            Write-Host "- No relevant fragmentation (>5%) detected" -ForegroundColor Green
+            Write-Host
+        }
     }
-
-    $tablesListStr = "'$($tablesList -join "','")'"
-
-    #Row Count
-    $query = "SELECT
-'['+s.name+'].['+ t.name+']' as TableName,
-p.rows AS RowCounts,
-CAST(ROUND(((SUM(a.total_pages) * 8) / 1024.00), 2) AS NUMERIC(36, 2)) AS TotalSpaceMB,
-CAST(ROUND(((SUM(a.used_pages) * 8) / 1024.00), 2) AS NUMERIC(36, 2)) AS UsedSpaceMB,
-CAST(ROUND(((SUM(a.total_pages) - SUM(a.used_pages)) * 8) / 1024.00, 2) AS NUMERIC(36, 2)) AS UnusedSpaceMB
-FROM sys.tables t
-INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id
-INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id
-INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
-LEFT OUTER JOIN sys.schemas s ON t.schema_id = s.schema_id
-WHERE '['+s.name+'].['+ t.name+']' IN (" + $tablesListStr + ")
-GROUP BY t.Name, s.Name, p.Rows
-ORDER BY '['+s.name+'].['+ t.name+']'"
-
-    $MemberCommand.CommandText = $query
-    $result = $MemberCommand.ExecuteReader()
-    $datatable = new-object 'System.Data.DataTable'
-    $datatable.Load($result)
-    if ($datatable.Rows.Count -gt 0) {
-        $datatable | Format-Table -Wrap -AutoSize
-    }
-
-    #Fragmentation
-    $query = "SELECT '['+s.[name]+'].['+ t.[name]+']' as TableName, i.[name] as [IndexName],
-CONVERT(DECIMAL(10,2),idxstats.avg_fragmentation_in_percent) as FragmentationPercent,
-idxstats.page_count AS [PageCount]
-FROM sys.dm_db_index_physical_stats (DB_ID(), NULL, NULL, NULL, NULL) AS idxstats
-INNER JOIN sys.tables t on t.[object_id] = idxstats.[object_id]
-INNER JOIN sys.schemas s on t.[schema_id] = s.[schema_id]
-INNER JOIN sys.indexes AS i ON i.[object_id] = idxstats.[object_id] AND idxstats.index_id = i.index_id
-WHERE '['+s.name+'].['+ t.name+']' IN (" + $tablesListStr + ")
-AND idxstats.database_id = DB_ID() AND idxstats.avg_fragmentation_in_percent >= 5
-ORDER BY idxstats.avg_fragmentation_in_percent desc"
-    $MemberCommand.CommandText = $query
-    $result = $MemberCommand.ExecuteReader()
-    $datatable = new-object 'System.Data.DataTable'
-    $datatable.Load($result)
-    if ($datatable.Rows.Count -gt 0) {
-        $datatable | Format-Table -Wrap -AutoSize
-    }
-    else {
-        Write-Host "No relevant fragmentation (>5%) detected" -ForegroundColor Green
+    Catch {
+        Write-Host ShowRowCountAndFragmentation exception:
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -299,13 +312,14 @@ function ValidateTablesVSSyncDbSchema($SyncDbScopes) {
                 $syncGroupSchemaColumns = $syncdbscopeobj | Where-Object {$_.QuotedTableName -eq $syncGroupSchemaTable} | Select-Object -ExpandProperty ColumnsToSync
 
                 $query = "SELECT
-                         c.name 'ColumnName',
-                         t.Name 'Datatype',
-                         c.max_length 'MaxLength',
-                         c.is_nullable 'IsNullable'
-                         FROM sys.columns c
-                         INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-                         WHERE c.object_id = OBJECT_ID('" + $syncGroupSchemaTable + "')"
+                c.name 'ColumnName',
+                t.Name 'Datatype',
+                c.max_length 'MaxLength',
+                c.is_nullable 'IsNullable'
+                FROM sys.columns c
+                INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+                WHERE c.object_id = OBJECT_ID('" + $syncGroupSchemaTable + "')"
+
                 $MemberCommand.CommandText = $query
                 $result = $MemberCommand.ExecuteReader()
                 $datatable = new-object 'System.Data.DataTable'
@@ -422,64 +436,73 @@ function ValidateTrackingRecords([String] $table, [Array] $tablePKList) {
 }
 
 function ValidateTrackingTable($table) {
+    Try {
+        if (![string]::IsNullOrEmpty($table)) {
+            [void]$allTrackingTableList.Add($table)
+        }
 
-    if (![string]::IsNullOrEmpty($table)) {
-        [void]$allTrackingTableList.Add($table)
+        $query = "SELECT COUNT(*) AS C FROM INFORMATION_SCHEMA.TABLES WHERE '['+TABLE_SCHEMA+'].['+ TABLE_NAME + ']' = '" + $table + "'"
+
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object 'System.Data.DataTable'
+        $datatable.Load($result)
+        $count = $datatable | Select-Object C -ExpandProperty C
+
+        if ($count -eq 1) {
+            Write-Host "Tracking Table " $table "exists" -Foreground Green
+        }
+
+        if ($count -eq 0) {
+            $msg = "WARNING: Tracking Table " + $table + " IS MISSING!"
+            Write-Host $msg -Foreground Red
+            [void]$errorSummary.AppendLine($msg)
+        }
     }
-
-    $query = "SELECT COUNT(*) AS C FROM INFORMATION_SCHEMA.TABLES WHERE '['+TABLE_SCHEMA+'].['+ TABLE_NAME + ']' = '" + $table + "'"
-
-    $MemberCommand.CommandText = $query
-    $result = $MemberCommand.ExecuteReader()
-    $datatable = new-object 'System.Data.DataTable'
-    $datatable.Load($result)
-    $count = $datatable | Select-Object C -ExpandProperty C
-
-    if ($count -eq 1) {
-        Write-Host "Tracking Table " $table "exists" -Foreground Green
-    }
-
-    if ($count -eq 0) {
-        $msg = "WARNING: Tracking Table " + $table + " IS MISSING!"
-        Write-Host $msg -Foreground Red
-        [void]$errorSummary.AppendLine($msg)
+    Catch {
+        Write-Host "Error at ValidateTrackingTable" $table -Foreground Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
 function ValidateTrigger([String] $trigger) {
+    Try {
+        if (![string]::IsNullOrEmpty($trigger)) {
+            [void]$allTriggersList.Add($trigger)
+        }
 
-    if (![string]::IsNullOrEmpty($trigger)) {
-        [void]$allTriggersList.Add($trigger)
-    }
+        $query = "SELECT tr.name, tr.is_disabled AS 'Disabled'
+        FROM sys.triggers tr
+        INNER JOIN sys.tables t ON tr.parent_id = t.object_id
+        INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+        WHERE '['+s.name+'].['+ tr.name+']' = '" + $trigger + "'"
 
-    $query = "
-    SELECT tr.name, tr.is_disabled AS 'Disabled'
-    FROM sys.triggers tr
-    INNER JOIN sys.tables t ON tr.parent_id = t.object_id
-    INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-    WHERE '['+s.name+'].['+ tr.name+']' = '" + $trigger + "'"
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $table = new-object 'System.Data.DataTable'
+        $table.Load($result)
+        $count = $table.Rows.Count
 
-    $MemberCommand.CommandText = $query
-    $result = $MemberCommand.ExecuteReader()
-    $table = new-object 'System.Data.DataTable'
-    $table.Load($result)
-    $count = $table.Rows.Count
+        if ($count -eq 1) {
+            if ($table.Rows[0].Disabled -eq 1) {
+                $msg = "WARNING (DSS035): Trigger " + $trigger + " exists but is DISABLED!"
+                Write-Host $msg -Foreground Red
+                [void]$errorSummary.AppendLine($msg)
+            }
+            else {
+                Write-Host "Trigger" $trigger "exists and is enabled." -Foreground Green
+            }
+        }
 
-    if ($count -eq 1) {
-        if ($table.Rows[0].Disabled -eq 1) {
-            $msg = "WARNING (DSS035): Trigger " + $trigger + " exists but is DISABLED!"
+        if ($count -eq 0) {
+            $msg = "WARNING (DSS035): Trigger " + $trigger + " IS MISSING!"
             Write-Host $msg -Foreground Red
             [void]$errorSummary.AppendLine($msg)
         }
-        else {
-            Write-Host "Trigger" $trigger "exists and is enabled." -Foreground Green
-        }
     }
-
-    if ($count -eq 0) {
-        $msg = "WARNING (DSS035): Trigger " + $trigger + " IS MISSING!"
-        Write-Host $msg -Foreground Red
-        [void]$errorSummary.AppendLine($msg)
+    Catch {
+        Write-Host "Error at ValidateTrigger" $trigger -Foreground Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -574,101 +597,106 @@ function ValidateSP([String] $SP) {
         }
     }
     Catch {
-        Write-Host ValidateSP exception:
+        Write-Host "Error at ValidateSP" $SP -Foreground Red
         Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
 function ValidateBulkType([String] $bulkType, $columns) {
+    Try {
+        if (![string]::IsNullOrEmpty($bulkType)) {
+            [void]$allBulkTypeList.Add($bulkType)
+        }
 
-    if (![string]::IsNullOrEmpty($bulkType)) {
-        [void]$allBulkTypeList.Add($bulkType)
-    }
+        $query = "select tt.name 'Type',
+        c.name 'ColumnName',
+        t.Name 'Datatype',
+        c.max_length 'MaxLength',
+        c.is_nullable 'IsNullable',
+        c.column_id 'ColumnId'
+        from sys.table_types tt
+        inner join sys.columns c on c.object_id = tt.type_table_object_id
+        inner join sys.types t ON c.user_type_id = t.user_type_id
+        where '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' ='" + $bulkType + "'"
 
-    $query = "select tt.name 'Type',
-    c.name 'ColumnName',
-    t.Name 'Datatype',
-    c.max_length 'MaxLength',
-    c.is_nullable 'IsNullable',
-    c.column_id 'ColumnId'
-    from sys.table_types tt
-    inner join sys.columns c on c.object_id = tt.type_table_object_id
-    inner join sys.types t ON c.user_type_id = t.user_type_id
-    where '['+ SCHEMA_NAME(tt.schema_id) +'].['+ tt.name+']' ='" + $bulkType + "'"
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $table = new-object 'System.Data.DataTable'
+        $table.Load($result)
+        $count = $table.Rows.Count
 
-    $MemberCommand.CommandText = $query
-    $result = $MemberCommand.ExecuteReader()
-    $table = new-object 'System.Data.DataTable'
-    $table.Load($result)
-    $count = $table.Rows.Count
+        if ($count -gt 0) {
+            Write-Host "Type" $bulkType "exists" -Foreground Green
+            foreach ($column in $columns) {
+                $sbCol = New-Object -TypeName "System.Text.StringBuilder"
+                $typeColumn = $table.Rows | Where-Object ColumnName -eq $column.name
 
-    if ($count -gt 0) {
-        Write-Host "Type" $bulkType "exists" -Foreground Green
-        foreach ($column in $columns) {
-            $sbCol = New-Object -TypeName "System.Text.StringBuilder"
-            $typeColumn = $table.Rows | Where-Object ColumnName -eq $column.name
+                if (!$typeColumn) {
+                    $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] does not exit!"
+                    Write-Host $msg -Foreground Red
+                    [void]$errorSummary.AppendLine($msg)
+                    continue
+                }
 
-            if (!$typeColumn) {
-                $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] does not exit!"
-                Write-Host $msg -Foreground Red
-                [void]$errorSummary.AppendLine($msg)
-                continue
-            }
+                [void]$sbCol.Append("- [" + $column.name + "] " + $column.param)
 
-            [void]$sbCol.Append("- [" + $column.name + "] " + $column.param)
-
-            if ($column.type -ne $typeColumn.Datatype) {
-                [void]$sbCol.Append('  Type(' + $column.type + '):NOK ')
-                $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different datatype! (type:" + $typeColumn.Datatype + " VS scope:" + $column.type + ")"
-                Write-Host $msg -Foreground Red
-                [void]$errorSummary.AppendLine($msg)
-            }
-            else {
-                [void]$sbCol.Append('  Type(' + $column.type + '):OK ')
-            }
-
-            $colMaxLen = $typeColumn.MaxLength
-
-            if ($column.type -eq 'nvarchar' -or $column.type -eq 'nchar') {$colMaxLen = $colMaxLen / 2}
-
-            if ($typeColumn.MaxLength -eq -1 -and ($column.type -eq 'nvarchar' -or $column.type -eq 'nchar' -or $column.type -eq 'varbinary' -or $column.type -eq 'varchar' -or $column.type -eq 'nvarchar')) {$colMaxLen = 'max'}
-
-            if ($column.size -ne $colMaxLen) {
-                [void]$sbCol.Append('  Size(' + $column.size + '):NOK ')
-                $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different data size!(type:" + $colMaxLen + " VS scope:" + $column.size + ")"
-                Write-Host $msg -Foreground Red
-                [void]$errorSummary.AppendLine($msg)
-            }
-            else {
-                [void]$sbCol.Append('  Size(' + $column.size + '):OK ')
-            }
-
-            if ($column.null) {
-                if ($column.null -ne $typeColumn.IsNullable) {
-                    [void]$sbCol.Append('  Nullable(' + $column.null + '):NOK ')
-                    $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different IsNullable! (type:" + $typeColumn.IsNullable + " VS scope:" + $column.null + ")"
+                if ($column.type -ne $typeColumn.Datatype) {
+                    [void]$sbCol.Append('  Type(' + $column.type + '):NOK ')
+                    $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different datatype! (type:" + $typeColumn.Datatype + " VS scope:" + $column.type + ")"
                     Write-Host $msg -Foreground Red
                     [void]$errorSummary.AppendLine($msg)
                 }
                 else {
-                    [void]$sbCol.Append('  Nullable(' + $column.null + '):OK ')
+                    [void]$sbCol.Append('  Type(' + $column.type + '):OK ')
+                }
+
+                $colMaxLen = $typeColumn.MaxLength
+
+                if ($column.type -eq 'nvarchar' -or $column.type -eq 'nchar') {$colMaxLen = $colMaxLen / 2}
+
+                if ($typeColumn.MaxLength -eq -1 -and ($column.type -eq 'nvarchar' -or $column.type -eq 'nchar' -or $column.type -eq 'varbinary' -or $column.type -eq 'varchar' -or $column.type -eq 'nvarchar')) {$colMaxLen = 'max'}
+
+                if ($column.size -ne $colMaxLen) {
+                    [void]$sbCol.Append('  Size(' + $column.size + '):NOK ')
+                    $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different data size!(type:" + $colMaxLen + " VS scope:" + $column.size + ")"
+                    Write-Host $msg -Foreground Red
+                    [void]$errorSummary.AppendLine($msg)
+                }
+                else {
+                    [void]$sbCol.Append('  Size(' + $column.size + '):OK ')
+                }
+
+                if ($column.null) {
+                    if ($column.null -ne $typeColumn.IsNullable) {
+                        [void]$sbCol.Append('  Nullable(' + $column.null + '):NOK ')
+                        $msg = "WARNING: " + $bulkType + ".[" + $column.name + "] has a different IsNullable! (type:" + $typeColumn.IsNullable + " VS scope:" + $column.null + ")"
+                        Write-Host $msg -Foreground Red
+                        [void]$errorSummary.AppendLine($msg)
+                    }
+                    else {
+                        [void]$sbCol.Append('  Nullable(' + $column.null + '):OK ')
+                    }
+                }
+
+                $sbColString = $sbCol.ToString()
+
+                if ($sbColString -match 'NOK') {
+                    Write-Host $sbColString -ForegroundColor Red
+                }
+                else {
+                    Write-Host $sbColString -ForegroundColor Green
                 }
             }
-
-            $sbColString = $sbCol.ToString()
-
-            if ($sbColString -match 'NOK') {
-                Write-Host $sbColString -ForegroundColor Red
-            }
-            else {
-                Write-Host $sbColString -ForegroundColor Green
-            }
+        }
+        if ($count -eq 0) {
+            $msg = "WARNING: Type " + $bulkType + " IS MISSING!"
+            Write-Host $msg -Foreground Red
+            [void]$errorSummary.AppendLine($msg)
         }
     }
-    if ($count -eq 0) {
-        $msg = "WARNING: Type " + $bulkType + " IS MISSING!"
-        Write-Host $msg -Foreground Red
-        [void]$errorSummary.AppendLine($msg)
+    Catch {
+        Write-Host "Error at ValidateBulkType" $bulkType -Foreground Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -860,19 +888,19 @@ function ValidateProvisionMarker {
 
         if (!$provisionMarkerDSSExists) {
             $query = "WITH TrackingTablesObjId_CTE (object_id) AS (
-SELECT OBJECT_ID(REPLACE([name], '_dss_tracking', ''))
-FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking'))
-SELECT '['+OBJECT_SCHEMA_NAME(cte.object_id)+'].['+ OBJECT_NAME(cte.object_id) +']' AS TableName, cte.object_id
-FROM TrackingTablesObjId_CTE AS cte"
+            SELECT OBJECT_ID(REPLACE([name], '_dss_tracking', ''))
+            FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking'))
+            SELECT '['+OBJECT_SCHEMA_NAME(cte.object_id)+'].['+ OBJECT_NAME(cte.object_id) +']' AS TableName, cte.object_id
+            FROM TrackingTablesObjId_CTE AS cte"
         }
         else {
             $query = "WITH TrackingTablesObjId_CTE (object_id) AS (
-SELECT OBJECT_ID(REPLACE([name], '_dss_tracking', ''))
-FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking'))
-SELECT '['+OBJECT_SCHEMA_NAME(cte.object_id)+'].['+ OBJECT_NAME(cte.object_id) +']' AS TableName, cte.object_id
-FROM TrackingTablesObjId_CTE AS cte
-LEFT OUTER JOIN [DataSync].[provision_marker_dss] marker on marker.owner_scope_local_id = 0 and marker.object_id = cte.object_id
-WHERE marker.object_id IS NULL"
+            SELECT OBJECT_ID(REPLACE([name], '_dss_tracking', ''))
+            FROM sys.tables WHERE schema_name(schema_id) = 'DataSync' and [name] like ('%_dss_tracking'))
+            SELECT '['+OBJECT_SCHEMA_NAME(cte.object_id)+'].['+ OBJECT_NAME(cte.object_id) +']' AS TableName, cte.object_id
+            FROM TrackingTablesObjId_CTE AS cte
+            LEFT OUTER JOIN [DataSync].[provision_marker_dss] marker on marker.owner_scope_local_id = 0 and marker.object_id = cte.object_id
+            WHERE marker.object_id IS NULL"
         }
 
         $MemberCommand.CommandText = $query
@@ -1005,24 +1033,30 @@ function ValidateObjectNames {
 }
 
 function DetectProvisioningIssues {
-    $query = "with TrackingTables as (
-    select REPLACE(name,'_dss_tracking','') as TrackingTableOrigin, name TrackingTable
-    from sys.tables
-    where SCHEMA_NAME(schema_id) = 'DataSync' AND [name] not in ('schema_info_dss','scope_info_dss','scope_config_dss','provision_marker_dss')
-    )
-    select TrackingTable from TrackingTables c
-    left outer join sys.tables t on c.TrackingTableOrigin = t.[name]
-    where t.[name] is null"
+    Try {
+        $query = "with TrackingTables as (
+        select REPLACE(name,'_dss_tracking','') as TrackingTableOrigin, name TrackingTable
+        from sys.tables
+        where SCHEMA_NAME(schema_id) = 'DataSync' AND [name] not in ('schema_info_dss','scope_info_dss','scope_config_dss','provision_marker_dss')
+        )
+        select TrackingTable from TrackingTables c
+        left outer join sys.tables t on c.TrackingTableOrigin = t.[name]
+        where t.[name] is null"
 
-    $MemberCommand.CommandText = $query
-    $result = $MemberCommand.ExecuteReader()
-    $datatable = new-object 'System.Data.DataTable'
-    $datatable.Load($result)
+        $MemberCommand.CommandText = $query
+        $result = $MemberCommand.ExecuteReader()
+        $datatable = new-object 'System.Data.DataTable'
+        $datatable.Load($result)
 
-    foreach ($extraTrackingTable in $datatable) {
-        $msg = "WARNING: " + $extraTrackingTable.TrackingTable + " exists but the corresponding user table does not exist! this maybe preventing provisioning/re-provisioning!"
-        Write-Host $msg -Foreground Red
-        [void]$errorSummary.AppendLine($msg)
+        foreach ($extraTrackingTable in $datatable) {
+            $msg = "WARNING: " + $extraTrackingTable.TrackingTable + " exists but the corresponding user table does not exist! this maybe preventing provisioning/re-provisioning!"
+            Write-Host $msg -Foreground Red
+            [void]$errorSummary.AppendLine($msg)
+        }
+    }
+    Catch {
+        Write-Host DetectProvisioningIssues exception:
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -1117,9 +1151,8 @@ function GetUIHistory {
         $datatable.Load($result)
 
         if ($datatable.Rows.Count -gt 0) {
-            $msg = "UI History:"
-            Write-Host $msg -Foreground White
-            $datatable | Format-Table -Wrap -AutoSize
+            Write-Host "UI History:" -Foreground White
+            $datatable | Format-Table -AutoSize -Wrap | Out-String -Width 4096
             $top = $datatable | Group-Object -Property SyncGroupName | ForEach-Object {$_ | Select-Object -ExpandProperty Group | Select-Object -First 1}
             $shouldDump = $top | Where-Object { $_.OperationResult -like '*Failure*' }
             if ($null -ne $shouldDump -and $DumpMetadataSchemasForSyncGroup -eq '') {
@@ -1152,7 +1185,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.8.1' `
+                    | Add-Member -PassThru NoteProperty name '6.8.2' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1164,7 +1197,10 @@ function SendAnonymousUsageData {
         $body = $body | ConvertTo-JSON -depth 5;
         Invoke-WebRequest -Uri 'https://dc.services.visualstudio.com/v2/track' -Method 'POST' -UseBasicParsing -body $body > $null
     }
-    Catch {}
+    Catch {
+        Write-Host SendAnonymousUsageData exception:
+        Write-Host $_.Exception.Message -ForegroundColor Red
+    }
 }
 
 function ValidateSyncDB {
@@ -1289,6 +1325,7 @@ function ValidateSyncDB {
         from sys.objects where type in ( 'FN', 'IF', 'TF' )
         and schema_name(schema_id) = 'dss' or schema_name(schema_id) = 'TaskHosting'
         group by schema_name(schema_id)"
+
         $SyncDbCommand.CommandText = $query
         $result = $SyncDbCommand.ExecuteReader()
         $datatable = new-object 'System.Data.DataTable'
@@ -1377,23 +1414,27 @@ function ValidateSyncDB {
         $SyncDbMembersDataTableA = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableA.Load($SyncDbMembersResult)
         Write-Host $SyncDbMembersDataTableA.rows.Count sync groups
-        $SyncDbMembersDataTableA.Rows | Format-Table -Wrap -AutoSize
+        $SyncDbMembersDataTableA.Rows | Format-Table -Wrap -AutoSize | Out-String -Width 4096
 
-        $SyncDbCommand.CommandText = "SELECT [name] AS SyncGroupMembers FROM [dss].[syncgroupmember]"
+        $SyncDbCommand.CommandText = "SELECT sgm.[name] + ' ('+ sg.[name] +')' AS SyncGroupMembers
+        FROM [dss].[syncgroupmember] sgm
+        INNER JOIN [dss].[syncgroup] sg ON sg.id = sgm.syncgroupid
+        ORDER BY sg.[name]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableB = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableB.Load($SyncDbMembersResult)
         Write-Host $SyncDbMembersDataTableB.rows.Count sync group members
-        $SyncDbMembersDataTableB.Rows | Format-Table -Wrap -AutoSize
+        $SyncDbMembersDataTableB.Rows | Format-Table -Wrap -AutoSize | Out-String -Width 4096
 
         $SyncDbCommand.CommandText = "SELECT [name] as SyncAgents FROM [dss].[agent]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableC = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableC.Load($SyncDbMembersResult)
         Write-Host $SyncDbMembersDataTableC.rows.Count sync agents
-        $SyncDbMembersDataTableC.Rows | Format-Table -Wrap -AutoSize
+        $SyncDbMembersDataTableC.Rows | Format-Table -Wrap -AutoSize | Out-String -Width 4096
     }
     Catch {
+        Write-Host ValidateSyncDB exception:
         Write-Host $_.Exception.Message -ForegroundColor Red
     }
     Finally {
@@ -1481,6 +1522,7 @@ function DumpMetadataSchemasForSyncGroup([String] $syncGoupName) {
         }
     }
     Catch {
+        Write-Host DumpMetadataSchemasForSyncGroup exception:
         Write-Host $_.Exception.Message -ForegroundColor Red
     }
     Finally {
@@ -1501,10 +1543,11 @@ function GetIndexes($table) {
         if ($datatable.Rows.Count -gt 0) {
             $msg = "Indexes for " + $table + ":"
             Write-Host $msg -Foreground Green
-            $datatable | Format-Table -Wrap -AutoSize
+            $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
         }
     }
     Catch {
+        Write-Host GetIndexes exception:
         Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
@@ -1547,10 +1590,11 @@ function GetConstraints($table) {
         if ($datatable.Rows.Count -gt 0) {
             $msg = "Constraints for " + $table + ":"
             Write-Host $msg -Foreground Green
-            $datatable | Format-Table -Wrap -AutoSize
+            $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
         }
     }
     Catch {
+        Write-Host GetConstraints exception:
         Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
@@ -1628,7 +1672,7 @@ function ValidateDSSMember() {
         $SyncDbMembersDataTable.Load($SyncDbMembersResult)
 
         Write-Host $SyncDbMembersDataTable.Rows.Count members found in this sync metadata database -ForegroundColor Green
-        $SyncDbMembersDataTable.Rows | Sort-Object -Property scopename | Select-Object scopename, SyncGroupName, MemberName, SyncDirection, State, HubState, JobId, Messages | Format-Table -Wrap -AutoSize
+        $SyncDbMembersDataTable.Rows | Sort-Object -Property scopename | Select-Object scopename, SyncGroupName, MemberName, SyncDirection, State, HubState, JobId, Messages | Format-Table -Wrap -AutoSize | Out-String -Width 4096
         $scopesList = $SyncDbMembersDataTable.Rows | Select-Object -ExpandProperty scopename
 
         $shouldMonitor = $SyncDbMembersDataTable.Rows | Where-Object { `
@@ -1664,7 +1708,7 @@ function ValidateDSSMember() {
             $SyncJobsResult = $SyncDbCommand.ExecuteReader()
             $SyncJobsDataTable = new-object 'System.Data.DataTable'
             $SyncJobsDataTable.Load($SyncJobsResult)
-            $SyncJobsDataTable | Format-Table -Wrap -AutoSize
+            $SyncJobsDataTable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
         }
 
         Write-Host
@@ -1700,7 +1744,7 @@ function ValidateDSSMember() {
             $MemberResult = $MemberCommand.ExecuteReader()
             $MemberVersion = new-object 'System.Data.DataTable'
             $MemberVersion.Load($MemberResult)
-            $MemberVersion.Rows | Format-Table -Wrap -AutoSize
+            $MemberVersion.Rows | Format-Table -Wrap -AutoSize | Out-String -Width 4096
             Write-Host
         }
         Catch {
@@ -1725,7 +1769,7 @@ function ValidateDSSMember() {
             $MemberScopes.Load($MemberResult)
 
             Write-Host $MemberScopes.Rows.Count scopes found in Hub/Member
-            $MemberScopes.Rows | Select-Object sync_scope_name, scope_config_id, scope_status, scope_local_id, Version | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize
+            $MemberScopes.Rows | Select-Object sync_scope_name, scope_config_id, scope_status, scope_local_id, Version | Sort-Object -Property sync_scope_name | Format-Table -Wrap -AutoSize | Out-String -Width 4096
             Write-Host
 
             $global:Connection = $MemberConnection
@@ -1959,80 +2003,90 @@ function Monitor() {
             Write-Host $_.Exception.Message -ForegroundColor Red
         }
 
-        $query = "select o.name AS What
-                      ,p.last_execution_time AS LastExecutionTime
-                      , p.execution_count AS ExecutionCount
-                      from sys.dm_exec_procedure_stats p
-                      inner join sys.objects o
-                      on o.object_id = p.object_id
-                      inner join sys.schemas s
-                      on s.schema_id=o.schema_id
-                      where s.name = 'DataSync'
-                      and p.last_execution_time > '" + $lastTimeString + "'
-                      order by p.last_execution_time desc"
 
-        $HubCommand.CommandText = $query
-        $HubResult = $HubCommand.ExecuteReader()
-        $datatable = new-object 'System.Data.DataTable'
-        $datatable.Load($HubResult)
+        $query = "select o.name AS What, p.last_execution_time AS LastExecutionTime, p.execution_count AS ExecutionCount
+        from sys.dm_exec_procedure_stats p
+        inner join sys.objects o on o.object_id = p.object_id
+        inner join sys.schemas s on s.schema_id=o.schema_id
+        where s.name = 'DataSync' and p.last_execution_time > '" + $lastTimeString + "'
+        order by p.last_execution_time desc"
 
-        if ($datatable.Rows.Count -gt 0) {
-            Write-Host "Hub Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
-            Write-Host ($datatable | Format-Table | Out-String)
+        Try {
+            $HubCommand.CommandText = $query
+            $HubResult = $HubCommand.ExecuteReader()
+            $datatable = new-object 'System.Data.DataTable'
+            $datatable.Load($HubResult)
+
+            if ($datatable.Rows.Count -gt 0) {
+                Write-Host "Hub Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
+                $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
+            }
+            else {
+                Write-Host "- No new records from Hub Monitor (SPs)" -ForegroundColor Green
+            }
         }
-        else {
-            Write-Host "- No new records from Hub Monitor (SPs)" -ForegroundColor Green
-        }
-
-        $MemberCommand.CommandText = $query
-        $MemberResult = $MemberCommand.ExecuteReader()
-        $datatable = new-object 'System.Data.DataTable'
-        $datatable.Load($MemberResult)
-
-        if ($datatable.Rows.Count -gt 0) {
-            Write-Host "Member Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
-            Write-Host ($datatable | Format-Table | Out-String)
-        }
-        else {
-            Write-Host "- No new records from Member Monitor (SPs)" -ForegroundColor Green
+        Catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red
         }
 
-        $query = "SELECT req.session_id as Session,
-                      req.status as Status,
-                      req.command as Command,
-                      req.cpu_time as CPUTime,
-                      req.total_elapsed_time as TotalTime,
-                      --sqltext.TEXT,
-                      SUBSTRING(sqltext.TEXT, CHARINDEX('[DataSync]', sqltext.TEXT), 100) as What
-                      FROM sys.dm_exec_requests req
-                      CROSS APPLY sys.dm_exec_sql_text(sql_handle) AS sqltext
-                      WHERE sqltext.TEXT like '%[DataSync]%'
-                      AND sqltext.TEXT not like 'SELECT req.session_id%'"
+        Try {
+            $MemberCommand.CommandText = $query
+            $MemberResult = $MemberCommand.ExecuteReader()
+            $datatable = new-object 'System.Data.DataTable'
+            $datatable.Load($MemberResult)
 
-        $HubCommand.CommandText = $query
-        $HubResult = $HubCommand.ExecuteReader()
-        $datatable = new-object 'System.Data.DataTable'
-        $datatable.Load($HubResult)
-
-        if ($datatable.Rows.Count -gt 0) {
-            Write-Host "Hub Monitor (running commands) ("$lastTimeString"): new records:" -ForegroundColor Green
-            Write-Host ($datatable | Format-Table | Out-String)
+            if ($datatable.Rows.Count -gt 0) {
+                Write-Host "Member Monitor (SPs) ("$lastTimeString"): new records:" -ForegroundColor Green
+                $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
+            }
+            else {
+                Write-Host "- No new records from Member Monitor (SPs)" -ForegroundColor Green
+            }
         }
-        else {
-            Write-Host "- No new records from Hub Monitor (running)" -ForegroundColor Green
+        Catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red
         }
 
-        $MemberCommand.CommandText = $query
-        $MemberResult = $MemberCommand.ExecuteReader()
-        $datatable = new-object 'System.Data.DataTable'
-        $datatable.Load($MemberResult)
+        $query = "SELECT req.session_id as Session, req.status as Status, req.command as Command,
+        req.cpu_time as CPUTime, req.total_elapsed_time as TotalTime, sqltext.TEXT as What
+        --SUBSTRING(sqltext.TEXT, CHARINDEX('[DataSync]', sqltext.TEXT), 100) as What
+        FROM sys.dm_exec_requests req CROSS APPLY sys.dm_exec_sql_text(sql_handle) AS sqltext
+        WHERE sqltext.TEXT like '%[DataSync]%' AND sqltext.TEXT not like 'SELECT req.session_id%'"
 
-        if ($datatable.Rows.Count -gt 0) {
-            Write-Host "Member Monitor (running commands) ("$lastTimeString"): new records:" -ForegroundColor Green
-            Write-Host ($datatable | Format-Table | Out-String)
+        Try {
+            $HubCommand.CommandText = $query
+            $HubResult = $HubCommand.ExecuteReader()
+            $datatable = new-object 'System.Data.DataTable'
+            $datatable.Load($HubResult)
+
+            if ($datatable.Rows.Count -gt 0) {
+                Write-Host "Hub Monitor (running commands) ("$lastTimeString"): new records:" -ForegroundColor Green
+                $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
+            }
+            else {
+                Write-Host "- No new records from Hub Monitor (running)" -ForegroundColor Green
+            }
         }
-        else {
-            Write-Host "- No new records from Member Monitor (running)" -ForegroundColor Green
+        Catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red
+        }
+
+        Try {
+            $MemberCommand.CommandText = $query
+            $MemberResult = $MemberCommand.ExecuteReader()
+            $datatable = new-object 'System.Data.DataTable'
+            $datatable.Load($MemberResult)
+
+            if ($datatable.Rows.Count -gt 0) {
+                Write-Host "Member Monitor (running commands) ("$lastTimeString"): new records:" -ForegroundColor Green
+                $datatable | Format-Table -Wrap -AutoSize | Out-String -Width 4096
+            }
+            else {
+                Write-Host "- No new records from Member Monitor (running)" -ForegroundColor Green
+            }
+        }
+        Catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red
         }
 
         $lasttime = $lasttime.AddSeconds($MonitoringIntervalInSeconds)
@@ -2044,11 +2098,16 @@ function Monitor() {
 }
 
 function FilterTranscript() {
-    if ($canWriteFiles) {
-        $lineNumber = (Select-String -Path $file -Pattern '..TranscriptStart..').LineNumber
-        if ($lineNumber) {
-            (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+    Try {
+        if ($canWriteFiles) {
+            $lineNumber = (Select-String -Path $file -Pattern '..TranscriptStart..').LineNumber
+            if ($lineNumber) {
+                (Get-Content $file | Select-Object -Skip $lineNumber) | Set-Content $file
+            }
         }
+    }
+    Catch {
+        Write-Host $_.Exception.Message -ForegroundColor Red
     }
 }
 
@@ -2066,12 +2125,12 @@ Try {
     $canWriteFiles = $true
     Try {
         Set-Location $HOME\clouddrive -ErrorAction Stop
-        Write-Host "This seems to be Azure Portal"
+        Write-Host "This seems to be running on Azure Cloud Shell"
         $isThisFromAzurePortal = $true
     }
     Catch {
         $isThisFromAzurePortal = $false
-        Write-Host "This doesn't seem to be Azure Portal"
+        Write-Host "This doesn't seem to be running on Azure Cloud Shell"
         Set-Location -Path $env:TEMP
     }
     Try {
@@ -2093,7 +2152,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.8.1 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.8.2 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
