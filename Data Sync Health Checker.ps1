@@ -1,3 +1,6 @@
+#Copyright (c) Microsoft Corporation.
+#Licensed under the MIT license.
+
 #Azure SQL Data Sync Health Checker
 
 #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -25,25 +28,24 @@ $MemberPassword = ''
 # set MemberUseWindowsAuthentication to $true in case you wish to use integrated Windows authentication (MemberUser and MemberPassword will be ignored)
 $MemberUseWindowsAuthentication = $false
 
+## Optional parameters (default values will be used if ommited)
 
 ## Health checks
-$HealthChecksEnabled = $true  #Set as $true or $false
+$HealthChecksEnabled = $true  #Set as $true (default) or $false
 
 ## Monitoring
-$MonitoringMode = 'AUTO'  #Set as AUTO, ENABLED or DISABLED
+$MonitoringMode = 'AUTO'  #Set as AUTO (default), ENABLED or DISABLED
 $MonitoringIntervalInSeconds = 20
 $MonitoringDurationInMinutes = 2
 
 ## Tracking Record Validations
-# Set as "All" to validate all tables
-# or pick the tables you need using '[dbo].[TableName1]','[dbo].[TableName2]'
-$ExtendedValidationsTableFilter = @('All')
-$ExtendedValidationsEnabledForHub = $false  #Attention, this may cause high I/O impact
-$ExtendedValidationsEnabledForMember = $false  #Attention, this may cause high I/O impact
-$ExtendedValidationsCommandTimeout = 900 #seconds
+$ExtendedValidationsTableFilter = @('All')  #Set as "All" or the tables you need using '[dbo].[TableName1]','[dbo].[TableName2]'
+$ExtendedValidationsEnabledForHub = $false  #Set as $true or $false (default)
+$ExtendedValidationsEnabledForMember = $false  #Set as $true or $false (default)
+$ExtendedValidationsCommandTimeout = 900 #seconds (default)
 
 ## Other
-$SendAnonymousUsageData = $true
+$SendAnonymousUsageData = $true  #Set as $true (default) or $false
 $DumpMetadataSchemasForSyncGroup = '' #leave empty for automatic detection
 $DumpMetadataObjectsForTable = '' #needs to be formatted like [SchemaName].[TableName]
 
