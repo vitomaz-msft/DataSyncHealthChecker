@@ -1187,7 +1187,7 @@ function SendAnonymousUsageData {
                 | Add-Member -PassThru NoteProperty baseType 'EventData' `
                 | Add-Member -PassThru NoteProperty baseData (New-Object PSObject `
                     | Add-Member -PassThru NoteProperty ver 2 `
-                    | Add-Member -PassThru NoteProperty name '6.8.2' `
+                    | Add-Member -PassThru NoteProperty name '6.8.3' `
                     | Add-Member -PassThru NoteProperty properties (New-Object PSObject `
                         | Add-Member -PassThru NoteProperty 'HealthChecksEnabled' $HealthChecksEnabled.ToString()`
                         | Add-Member -PassThru NoteProperty 'MonitoringMode' $MonitoringMode.ToString()`
@@ -1411,17 +1411,21 @@ function ValidateSyncDB {
             Write-Host $msg -Foreground Red
         }
 
-        $SyncDbCommand.CommandText = "SELECT [name] AS SyncGroups FROM [dss].[syncgroup]"
+        $SyncDbCommand.CommandText = "SELECT sg.[name] AS SyncGroup,  ud.[database]  + ' at ' + ud.[server] AS [Database]
+FROM [dss].[syncgroup] as sg
+INNER JOIN [dss].[userdatabase] as ud on sg.hub_memberid = ud.id
+ORDER BY sg.[name]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableA = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableA.Load($SyncDbMembersResult)
         Write-Host $SyncDbMembersDataTableA.rows.Count sync groups
         $SyncDbMembersDataTableA.Rows | Format-Table -Wrap -AutoSize | Out-String -Width 4096
 
-        $SyncDbCommand.CommandText = "SELECT sgm.[name] + ' ('+ sg.[name] +')' AS SyncGroupMembers
-        FROM [dss].[syncgroupmember] sgm
-        INNER JOIN [dss].[syncgroup] sg ON sg.id = sgm.syncgroupid
-        ORDER BY sg.[name]"
+        $SyncDbCommand.CommandText = "SELECT sg.[name] AS SyncGroup, sgm.[name] AS Member,  ud.[database]  + ' at ' + ud.[server] AS [Database]
+FROM [dss].[syncgroupmember] sgm
+INNER JOIN [dss].[syncgroup] sg ON sg.id = sgm.syncgroupid
+INNER JOIN [dss].[userdatabase] as ud on sgm.databaseid = ud.id
+ORDER BY sg.[name]"
         $SyncDbMembersResult = $SyncDbCommand.ExecuteReader()
         $SyncDbMembersDataTableB = new-object 'System.Data.DataTable'
         $SyncDbMembersDataTableB.Load($SyncDbMembersResult)
@@ -2154,7 +2158,7 @@ Try {
 
     Try {
         Write-Host ************************************************************ -ForegroundColor Green
-        Write-Host "  Azure SQL Data Sync Health Checker v6.8.2 Results" -ForegroundColor Green
+        Write-Host "  Azure SQL Data Sync Health Checker v6.8.3 Results" -ForegroundColor Green
         Write-Host ************************************************************ -ForegroundColor Green
         Write-Host
         Write-Host "Configuration:" -ForegroundColor Green
